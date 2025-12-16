@@ -1,6 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 sqlalchemy
 pydantic
-PostgreSQL
-
+psycopg2-binary
