@@ -1,36 +1,32 @@
 from sqlalchemy.orm import Session
-#from models import Place, VisitEvent
-from models import Place, Event
-from schemas import EventIn
+from sqlalchemy.exc import IntegrityError
+from models import Place, VisitEvent
 
-def get_place(db: Session, place_id: str) -> Place:
-    place = db.query(Place).filter(Place.place_id == place_id).first()
-    if not place:
-        place = Place(place_id=place_id, current_count=0, capacity=10)
-        db.add(place)
-        db.commit()
-        db.refresh(place)
-    return place
+def handle_event(db: Session, place_id: str, event: str, event_id: int, time):
 
+    # 1️⃣ تحقق هل event_id مسجّل سابقًا (Retry)
+    existing = db.query(VisitEvent).filter(
+        VisitEvent.event_id == event_id
+    ).first()
 
-def handle_event(db: Session, place_id: str, event: str, time, event_id: int):
-
-    # منع التكرار (idempotency)
-    exists = db.query(Event).filter(Event.event_id == event_id).first()
-    if exists:
+    if existing:
+        place = db.query(Place).filter(Place.place_id == place_id).first()
         return {
             "status": "OK",
-            "current_count": exists.place.current_count,
+            "current_count": place.current_count,
             "message": "Duplicate event ignored"
         }
 
+    # 2️⃣ احصل على المكان
     place = db.query(Place).filter(Place.place_id == place_id).first()
+
     if not place:
         place = Place(place_id=place_id, capacity=10, current_count=0)
         db.add(place)
         db.commit()
         db.refresh(place)
 
+    # 3️⃣ منطق الدخول / الخروج
     if event == "enter":
         if place.current_count >= place.capacity:
             return {
@@ -44,15 +40,26 @@ def handle_event(db: Session, place_id: str, event: str, time, event_id: int):
         if place.current_count > 0:
             place.current_count -= 1
 
-    log = Event(
-        event_id=event_id,
+    # 4️⃣ تسجيل الحدث
+    log = VisitEvent(
         place_id=place_id,
         event=event,
+        event_id=event_id,
         time=time
     )
 
     db.add(log)
-    db.commit()
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return {
+            "status": "OK",
+            "current_count": place.current_count,
+            "message": "Duplicate ignored (race)"
+        }
+
     db.refresh(place)
 
     return {
