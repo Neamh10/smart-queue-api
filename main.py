@@ -19,17 +19,13 @@ def get_db():
         db.close()
 
 @app.post("/event", response_model=EventResponse)
-def receive_event(
-    event: EventIn,
-    db: Session = Depends(get_db),
-    x_api_key: str = Header(None)
-):
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=403, detail="Invalid API Key")
-
+def receive_event(event: EventIn, db: Session = Depends(get_db)):
     return handle_event(
         db=db,
-        event_data=event
+        place_id=event.place_id,
+        event=event.event,
+        time=event.time,
+        event_id=event.event_id   # 
     )
 
 @app.get("/sync")
@@ -41,3 +37,4 @@ def sync(place_id: str, db: Session = Depends(get_db)):
         "capacity": place.capacity,
         "status": "OK"
     }
+
