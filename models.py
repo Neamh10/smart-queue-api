@@ -16,4 +16,5 @@ class VisitEvent(Base):
     place_id = Column(String, index=True)
     event = Column(String)
     event_id = Column(Integer, unique=True, index=True)
-    time = Column(DateTime, default=datetime.utcnow)
+    #time = Column(DateTime, default=datetime.utcnow)
+    time = Column(DateTime)
