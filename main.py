@@ -4,19 +4,18 @@ from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
 from database import Base, engine, get_db
-import models, schemas, crud
+import schemas, crud
 
-# ================== APP INIT ==================
 app = FastAPI(
     title="Smart Queue Backend",
     version="1.0.0"
 )
 
-# ================== SECURITY ==================
+# 🔐 Security
 API_KEY = "SMARTQUEUE-ESP32-KEY"
 api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
 
-# ================== CORS ==================
+# 🌍 CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,80 +24,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ================== DATABASE ==================
+# 🗄️ DB
 Base.metadata.create_all(bind=engine)
 
-# ================== CONFIG ==================
 CAPACITY_LIMIT = 10
 
-# ================== ROOT ==================
+
 @app.get("/")
 def root():
-    return {
-        "status": "OK",
-        "service": "Smart Queue Backend"
-    }
+    return {"status": "OK"}
 
-# ================== EVENT ENDPOINT ==================
+
 @app.post("/event", response_model=schemas.EventResponse)
 def receive_event(
     event: schemas.EventIn,
     db: Session = Depends(get_db),
     api_key: str = Depends(api_key_header)
 ):
-    """
-    يستقبل حدث من ESP32:
-    enter / exit
-    """
-
-    # 🔐 تحقق من API KEY
     if api_key != API_KEY:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    # 1️⃣ العدد الحالي
-    current_count = crud.get_current_count(db, event.place_id)
-
-    # 2️⃣ منطق الدخول
-    if event.event == "enter":
-        if current_count >= CAPACITY_LIMIT:
-            return {
-                "status": "FULL",
-                "current_count": current_count,
-                "message": "Capacity limit reached"
-            }
-        new_count = current_count + 1
-
-    # 3️⃣ منطق الخروج
-    elif event.event == "exit":
-        new_count = max(0, current_count - 1)
-
-    else:
-        raise HTTPException(status_code=400, detail="Invalid event type")
-
-    # 4️⃣ حفظ الحدث
-    crud.create_event(
+    status, count = crud.handle_event(
         db=db,
         place_id=event.place_id,
-        event_type=event.event,
-        event_time=event.time,
-        current_count=new_count
+        event=event.event,
+        event_id=event.event_id,
+        time=event.time,
+        capacity_limit=CAPACITY_LIMIT
     )
 
-    # 5️⃣ الرد
     return {
-        "status": "OK",
-        "current_count": new_count,
-        "message": "Event processed successfully"
+        "status": status,
+        "current_count": count,
+        "message": "Event processed"
     }
 
-# ================== STATUS ENDPOINT ==================
-@app.get("/status/{place_id}")
-def get_status(
-    place_id: str,
-    db: Session = Depends(get_db)
-):
-    count = crud.get_current_count(db, place_id)
 
+@app.get("/status/{place_id}")
+def get_status(place_id: str, db: Session = Depends(get_db)):
+    count = crud.get_current_count(db, place_id)
     return {
         "place_id": place_id,
         "current_count": count,
@@ -106,11 +70,7 @@ def get_status(
         "is_full": count >= CAPACITY_LIMIT
     }
 
-# ================== EVENTS HISTORY ==================
+
 @app.get("/events")
-def get_events(
-    place_id: str,
-    limit: int = 20,
-    db: Session = Depends(get_db)
-):
+def events(place_id: str, limit: int = 10, db: Session = Depends(get_db)):
     return crud.get_events(db, place_id, limit)
