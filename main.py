@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
 from database import Base, engine, get_db
@@ -11,8 +12,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# ================== SECURITY ==================
+API_KEY = "SMARTQUEUE-ESP32-KEY"
+api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
+
 # ================== CORS ==================
-# ضروري لـ ESP32 + Dashboard Web
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,7 +29,7 @@ app.add_middleware(
 Base.metadata.create_all(bind=engine)
 
 # ================== CONFIG ==================
-CAPACITY_LIMIT = 10  # الحد الأقصى للمكان
+CAPACITY_LIMIT = 10
 
 # ================== ROOT ==================
 @app.get("/")
@@ -37,16 +41,19 @@ def root():
 
 # ================== EVENT ENDPOINT ==================
 @app.post("/event", response_model=schemas.EventResponse)
-def handle_event(
+def receive_event(
     event: schemas.EventIn,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    api_key: str = Depends(api_key_header)
 ):
     """
     يستقبل حدث من ESP32:
-    - enter
-    - exit
-    السيرفر يحسب العدد ويقرر FULL أو OK
+    enter / exit
     """
+
+    # 🔐 تحقق من API KEY
+    if api_key != API_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     # 1️⃣ العدد الحالي
     current_count = crud.get_current_count(db, event.place_id)
@@ -66,12 +73,9 @@ def handle_event(
         new_count = max(0, current_count - 1)
 
     else:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid event type"
-        )
+        raise HTTPException(status_code=400, detail="Invalid event type")
 
-    # 4️⃣ حفظ الحدث في قاعدة البيانات
+    # 4️⃣ حفظ الحدث
     crud.create_event(
         db=db,
         place_id=event.place_id,
@@ -80,7 +84,7 @@ def handle_event(
         current_count=new_count
     )
 
-    # 5️⃣ الرد النهائي
+    # 5️⃣ الرد
     return {
         "status": "OK",
         "current_count": new_count,
@@ -93,9 +97,6 @@ def get_status(
     place_id: str,
     db: Session = Depends(get_db)
 ):
-    """
-    Endpoint للـ Dashboard
-    """
     count = crud.get_current_count(db, place_id)
 
     return {
@@ -112,7 +113,4 @@ def get_events(
     limit: int = 20,
     db: Session = Depends(get_db)
 ):
-    """
-    جلب سجل الأحداث (Dashboard / Analytics)
-    """
     return crud.get_events(db, place_id, limit)
