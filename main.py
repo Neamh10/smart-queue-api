@@ -1,22 +1,20 @@
-from fastapi import FastAPI, Depends, Header, HTTPException
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
 from database import SessionLocal, engine
 import models
 from schemas import EventIn, EventResponse
 from crud import handle_event, get_place
-from fastapi.security import APIKeyHeader
 
-api_key_header = APIKeyHeader(name="X-API-KEY")
-
-
-# إنشاء الجداول
+# ================== INIT ==================
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Smart Queue Backend")
 
 # ================== CONFIG ==================
 API_KEY = "SMARTQUEUE-ESP32-KEY"
+api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
 
 # ================== DB DEPENDENCY ==================
 def get_db():
@@ -27,16 +25,13 @@ def get_db():
         db.close()
 
 # ================== EVENT ENDPOINT ==================
-from fastapi import FastAPI, Depends, Header, HTTPException
-from sqlalchemy.orm import Session
-
 @app.post("/event", response_model=EventResponse)
 def receive_event(
     event: EventIn,
     db: Session = Depends(get_db),
-    x_api_key: str = Header(...)
+    api_key: str = Depends(api_key_header)
 ):
-    if x_api_key != API_KEY:
+    if api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
     return handle_event(
@@ -46,7 +41,6 @@ def receive_event(
         event_id=event.event_id,
         time=event.time
     )
-
 
 # ================== SYNC ENDPOINT ==================
 @app.get("/sync")
@@ -67,6 +61,3 @@ def sync(place_id: str, db: Session = Depends(get_db)):
 @app.get("/")
 def health():
     return {"status": "Smart Queue Backend is running"}
-
-
-
