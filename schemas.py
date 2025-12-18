@@ -1,18 +1,27 @@
 from pydantic import BaseModel
-from datetime import datetime
 from typing import Optional
+from datetime import datetime
 
 
+# ================== INPUT SCHEMA ==================
 class EventIn(BaseModel):
     place_id: str
-    event: str 
-      event_id: int 
+    event: str  # "enter" | "exit"
     time: Optional[datetime] = None
 
 
+# ================== RESPONSE SCHEMA ==================
 class EventResponse(BaseModel):
-    status: str
+    status: str           # OK | FULL
     current_count: int
     message: str
 
 
+# ================== EVENT OUT (HISTORY) ==================
+class EventOut(BaseModel):
+    place_id: str
+    event: str
+    time: datetime
+
+    class Config:
+        from_attributes = True
