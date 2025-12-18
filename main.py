@@ -27,15 +27,17 @@ def get_db():
         db.close()
 
 # ================== EVENT ENDPOINT ==================
-api_key_header = APIKeyHeader(name="X-API-KEY")
+from fastapi import FastAPI, Depends, Header, HTTPException
+from sqlalchemy.orm import Session
+
 @app.post("/event", response_model=EventResponse)
 def receive_event(
     event: EventIn,
     db: Session = Depends(get_db),
-    api_key: str = Depends(api_key_header)
+    x_api_key: str = Header(...)
 ):
-    if api_key != API_KEY:
-        raise HTTPException(status_code=403, detail="Forbidden")
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
 
     return handle_event(
         db=db,
@@ -44,6 +46,7 @@ def receive_event(
         event_id=event.event_id,
         time=event.time
     )
+
 
 # ================== SYNC ENDPOINT ==================
 @app.get("/sync")
@@ -64,5 +67,6 @@ def sync(place_id: str, db: Session = Depends(get_db)):
 @app.get("/")
 def health():
     return {"status": "Smart Queue Backend is running"}
+
 
 
