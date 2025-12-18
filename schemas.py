@@ -5,7 +5,8 @@ from typing import Optional
 
 class EventIn(BaseModel):
     place_id: str
-    event: str          
+    event: str 
+      event_id: int 
     time: Optional[datetime] = None
 
 
@@ -13,4 +14,5 @@ class EventResponse(BaseModel):
     status: str
     current_count: int
     message: str
+
 
