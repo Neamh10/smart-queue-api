@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
-
+from fastapi import Header
 from database import SessionLocal, engine
 import models
 from schemas import EventIn, EventResponse
@@ -25,14 +25,18 @@ def get_db():
         db.close()
 
 # ================== EVENT ENDPOINT ==================
+
 @app.post("/event", response_model=EventResponse)
 def receive_event(
     event: EventIn,
     db: Session = Depends(get_db),
-    api_key: str = Depends(api_key_header)
+    x_api_key: str = Header(None, alias="X-API-KEY")
 ):
-    if api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API key")
+    if x_api_key is None:
+        raise HTTPException(status_code=401, detail="Missing API key")
+
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid API key")
 
     return handle_event(
         db=db,
@@ -41,6 +45,7 @@ def receive_event(
         event_id=event.event_id,
         time=event.time
     )
+
 
 # ================== SYNC ENDPOINT ==================
 @app.get("/sync")
@@ -61,3 +66,4 @@ def sync(place_id: str, db: Session = Depends(get_db)):
 @app.get("/")
 def health():
     return {"status": "Smart Queue Backend is running"}
+
