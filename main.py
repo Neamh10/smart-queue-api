@@ -5,6 +5,10 @@ from database import SessionLocal, engine
 import models
 from schemas import EventIn, EventResponse
 from crud import handle_event, get_place
+from fastapi.security import APIKeyHeader
+
+api_key_header = APIKeyHeader(name="X-API-KEY")
+
 
 # إنشاء الجداول
 models.Base.metadata.create_all(bind=engine)
@@ -61,3 +65,4 @@ def sync(place_id: str, db: Session = Depends(get_db)):
 @app.get("/")
 def health():
     return {"status": "Smart Queue Backend is running"}
+
