@@ -27,17 +27,16 @@ def get_db():
         db.close()
 
 # ================== EVENT ENDPOINT ==================
+api_key_header = APIKeyHeader(name="X-API-KEY")
 @app.post("/event", response_model=EventResponse)
 def receive_event(
     event: EventIn,
     db: Session = Depends(get_db),
-    x_api_key: str = Header(...)
+    api_key: str = Depends(api_key_header)
 ):
-    # 🔐 تحقق من مفتاح الأمان
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API key")
+    if api_key != API_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
-    # معالجة الحدث
     return handle_event(
         db=db,
         place_id=event.place_id,
@@ -65,4 +64,5 @@ def sync(place_id: str, db: Session = Depends(get_db)):
 @app.get("/")
 def health():
     return {"status": "Smart Queue Backend is running"}
+
 
