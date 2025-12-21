@@ -1,16 +1,28 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+from datetime import datetime
 
 from database import Base, engine, get_db
 import schemas, crud
+from manager import ConnectionManager
 
+# ======================
+# App Init
+# ======================
 app = FastAPI(title="Smart Queue Backend")
 
 API_KEY = "SMARTQUEUE-ESP32-KEY"
 api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
 
+manager = ConnectionManager()
+CAPACITY_LIMIT = 10
+
+# ======================
+# Middleware
+# ======================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,11 +30,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-Base.metadata.create_all(bind=engine)
-CAPACITY_LIMIT = 10
+# ======================
+# Static Frontend
+# ======================
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
 
+Base.metadata.create_all(bind=engine)
+
+# ======================
+# WebSocket
+# ======================
+@app.websocket("/ws/{place_id}")
+async def websocket_endpoint(websocket: WebSocket, place_id: str):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+# ======================
+# REST API
+# ======================
 @app.post("/event", response_model=schemas.EventResponse)
-def receive_event(
+async def receive_event(
     event: schemas.EventIn,
     db: Session = Depends(get_db),
     api_key: str = Depends(api_key_header)
@@ -30,7 +61,7 @@ def receive_event(
     if api_key != API_KEY:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    return crud.handle_event(
+    result = crud.handle_event(
         db=db,
         place_id=event.place_id,
         event=event.event,
@@ -38,10 +69,20 @@ def receive_event(
         capacity_limit=CAPACITY_LIMIT
     )
 
-@app.get(
-    "/status/{place_id}",
-    response_model=schemas.StatusResponse
-)
+    # 🔥 بث لحظي للـ Dashboard
+    await manager.broadcast({
+        "place_id": event.place_id,
+        "current_count": result["current_count"],
+        "event": event.event,
+        "time": datetime.utcnow().isoformat()
+    })
+
+    return result
+
+# ======================
+# Status
+# ======================
+@app.get("/status/{place_id}", response_model=schemas.StatusResponse)
 def get_status(
     place_id: str,
     db: Session = Depends(get_db),
@@ -53,10 +94,10 @@ def get_status(
     count = crud.get_current_count(db, place_id)
     return {"place_id": place_id, "current_count": count}
 
-@app.get(
-    "/events/{place_id}",
-    response_model=list[schemas.EventOut]
-)
+# ======================
+# Events (Pagination)
+# ======================
+@app.get("/events/{place_id}", response_model=list[schemas.EventOut])
 def get_events(
     place_id: str,
     page: int = 1,
@@ -74,6 +115,5 @@ def get_events(
         page_size=page_size
     )
 
-    # ترتيب تصاعدي للـ Chart
     events.reverse()
     return events
