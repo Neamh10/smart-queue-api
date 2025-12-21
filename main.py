@@ -51,30 +51,29 @@ def get_status(
         raise HTTPException(status_code=403, detail="Forbidden")
 
     count = crud.get_current_count(db, place_id)
-    return {
-        "place_id": place_id,
-        "current_count": count
-    }
-
+    return {"place_id": place_id, "current_count": count}
 
 @app.get(
     "/events/{place_id}",
-    response_model=list[schemas.EventLog]
+    response_model=list[schemas.EventOut]
 )
 def get_events(
     place_id: str,
-    limit: int = 20,
+    page: int = 1,
+    page_size: int = 50,
     db: Session = Depends(get_db),
     api_key: str = Depends(api_key_header)
 ):
     if api_key != API_KEY:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    events = crud.get_events(db, place_id, limit)
+    events = crud.get_events_paginated(
+        db=db,
+        place_id=place_id,
+        page=page,
+        page_size=page_size
+    )
 
     # ترتيب تصاعدي للـ Chart
     events.reverse()
-
     return events
-
-
