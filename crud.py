@@ -69,3 +69,19 @@ def get_events(db: Session, place_id: str, limit: int = 10):
         .limit(limit)
         .all()
     )
+def get_events_paginated(
+    db: Session,
+    place_id: str,
+    page: int = 1,
+    page_size: int = 50
+):
+    offset = (page - 1) * page_size
+
+    return (
+        db.query(VisitEvent)
+        .filter(VisitEvent.place_id == place_id)
+        .order_by(VisitEvent.time.desc())
+        .offset(offset)
+        .limit(page_size)
+        .all()
+    )
