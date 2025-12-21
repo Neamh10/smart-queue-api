@@ -12,6 +12,7 @@ class EventResponse(BaseModel):
     current_count: int
     message: str
 
+
 class StatusResponse(BaseModel):
     place_id: str
     current_count: int
@@ -20,3 +21,15 @@ class EventLog(BaseModel):
     time: datetime
     current_count: int
     event: str
+
+
+class StatusResponse(BaseModel):
+    place_id: str
+    current_count: int
+
+
+class EventOut(BaseModel):
+    time: datetime
+    current_count: int
+    event: str
+
