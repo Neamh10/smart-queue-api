@@ -11,3 +11,12 @@ class EventResponse(BaseModel):
     status: str
     current_count: int
     message: str
+
+class StatusResponse(BaseModel):
+    place_id: str
+    current_count: int
+
+class EventLog(BaseModel):
+    time: datetime
+    current_count: int
+    event: str
