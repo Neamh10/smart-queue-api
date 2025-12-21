@@ -35,9 +35,6 @@ def handle_event(
     elif event == "exit":
         place.current_count = max(0, place.current_count - 1)
 
-    else:
-        raise ValueError("Invalid event type")
-
     log = VisitEvent(
         place_id=place_id,
         event=event,
@@ -52,36 +49,11 @@ def handle_event(
     return {
         "status": "OK",
         "current_count": place.current_count,
-        "message": "Event processed"
+        "message": "Event processed",
+        "payload": {
+            "place_id": place_id,
+            "current_count": place.current_count,
+            "event": event,
+            "time": log.time.isoformat()
+        }
     }
-
-def get_current_count(db: Session, place_id: str) -> int:
-    place = db.query(Place).filter(
-        Place.place_id == place_id
-    ).first()
-    return place.current_count if place else 0
-
-def get_events(db: Session, place_id: str, limit: int = 10):
-    return (
-        db.query(VisitEvent)
-        .filter(VisitEvent.place_id == place_id)
-        .order_by(VisitEvent.time.desc())
-        .limit(limit)
-        .all()
-    )
-def get_events_paginated(
-    db: Session,
-    place_id: str,
-    page: int = 1,
-    page_size: int = 50
-):
-    offset = (page - 1) * page_size
-
-    return (
-        db.query(VisitEvent)
-        .filter(VisitEvent.place_id == place_id)
-        .order_by(VisitEvent.time.desc())
-        .offset(offset)
-        .limit(page_size)
-        .all()
-    )
