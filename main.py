@@ -37,3 +37,11 @@ def receive_event(
         time=event.time,
         capacity_limit=CAPACITY_LIMIT
     )
+
+@app.get("/status/{place_id}")
+def get_status(place_id: str, db: Session = Depends(get_db)):
+    count = crud.get_current_count(db, place_id)
+    return {
+        "place_id": place_id,
+        "current_count": count
+    }
