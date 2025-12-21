@@ -38,21 +38,43 @@ def receive_event(
         capacity_limit=CAPACITY_LIMIT
     )
 
-@app.get("/status/{place_id}")
-def get_status(place_id: str, db: Session = Depends(get_db)):
+@app.get(
+    "/status/{place_id}",
+    response_model=schemas.StatusResponse
+)
+def get_status(
+    place_id: str,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(api_key_header)
+):
+    if api_key != API_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
     count = crud.get_current_count(db, place_id)
     return {
         "place_id": place_id,
         "current_count": count
     }
 
-@app.get("/events/{place_id}")
-def get_events(place_id: str, limit: int = 20, db: Session = Depends(get_db)):
+
+@app.get(
+    "/events/{place_id}",
+    response_model=list[schemas.EventLog]
+)
+def get_events(
+    place_id: str,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(api_key_header)
+):
+    if api_key != API_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
     events = crud.get_events(db, place_id, limit)
-    return [
-        {
-            "time": e.time,
-            "current_count": e.current_count,
-            "event": e.event
-        } for e in events
-    ]
+
+    # ترتيب تصاعدي للـ Chart
+    events.reverse()
+
+    return events
+
+
