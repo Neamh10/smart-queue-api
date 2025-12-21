@@ -45,3 +45,14 @@ def get_status(place_id: str, db: Session = Depends(get_db)):
         "place_id": place_id,
         "current_count": count
     }
+
+@app.get("/events/{place_id}")
+def get_events(place_id: str, limit: int = 20, db: Session = Depends(get_db)):
+    events = crud.get_events(db, place_id, limit)
+    return [
+        {
+            "time": e.time,
+            "current_count": e.current_count,
+            "event": e.event
+        } for e in events
+    ]
