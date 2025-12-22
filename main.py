@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -30,10 +29,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ======================
-# Static Frontend
-# ======================
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
 
 Base.metadata.create_all(bind=engine)
 
@@ -117,3 +112,4 @@ def get_events(
 
     events.reverse()
     return events
+
