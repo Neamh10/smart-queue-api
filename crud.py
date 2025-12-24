@@ -9,6 +9,7 @@ def handle_event(
     time: datetime | None,
     capacity_limit: int = 10
 ):
+    # 1️⃣ Get or create place
     place = db.query(Place).filter(
         Place.place_id == place_id
     ).first()
@@ -23,18 +24,28 @@ def handle_event(
         db.commit()
         db.refresh(place)
 
+    # 2️⃣ Business logic
     if event == "enter":
         if place.current_count >= place.capacity:
             return {
                 "status": "FULL",
                 "current_count": place.current_count,
-                "message": "Capacity reached"
+                "message": "Capacity reached",
+                "payload": {
+                    "place_id": place_id,
+                    "current_count": place.current_count,
+                    "event": "FULL"
+                }
             }
         place.current_count += 1
 
     elif event == "exit":
         place.current_count = max(0, place.current_count - 1)
 
+    else:
+        raise ValueError("Invalid event type")
+
+    # 3️⃣ Log event
     log = VisitEvent(
         place_id=place_id,
         event=event,
@@ -46,8 +57,14 @@ def handle_event(
     db.commit()
     db.refresh(place)
 
+    # 4️⃣ Return API + WebSocket payload
     return {
         "status": "OK",
         "current_count": place.current_count,
-        "message": "Event processed"
+        "message": "Event processed",
+        "payload": {
+            "place_id": place_id,
+            "current_count": place.current_count,
+            "event": event
+        }
     }
