@@ -2,12 +2,13 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from models import Place, VisitEvent
 
+CAPACITY_LIMIT = 10
+
 def handle_event(
     db: Session,
     place_id: str,
     event: str,
-    time: datetime | None,
-    capacity_limit: int = 10
+    time: datetime | None
 ):
     # 1️⃣ Get or create place
     place = db.query(Place).filter(
@@ -17,7 +18,7 @@ def handle_event(
     if not place:
         place = Place(
             place_id=place_id,
-            capacity=capacity_limit,
+            capacity=CAPACITY_LIMIT,
             current_count=0
         )
         db.add(place)
@@ -30,12 +31,7 @@ def handle_event(
             return {
                 "status": "FULL",
                 "current_count": place.current_count,
-                "message": "Capacity reached",
-                "payload": {
-                    "place_id": place_id,
-                    "current_count": place.current_count,
-                    "event": "FULL"
-                }
+                "message": "Capacity reached"
             }
         place.current_count += 1
 
@@ -57,14 +53,8 @@ def handle_event(
     db.commit()
     db.refresh(place)
 
-    # 4️⃣ Return API + WebSocket payload
     return {
         "status": "OK",
         "current_count": place.current_count,
-        "message": "Event processed",
-        "payload": {
-            "place_id": place_id,
-            "current_count": place.current_count,
-            "event": event
-        }
+        "message": "Event processed"
     }
