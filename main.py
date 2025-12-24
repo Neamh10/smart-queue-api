@@ -1,17 +1,18 @@
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
+
 from database import Base, engine, get_db
-import crud, schemas
-from manager import ConnectionManager
+import schemas, crud
 
 app = FastAPI(title="Smart Queue Backend")
-manager = ConnectionManager()
 
+# 🔐 Security
 API_KEY = "SMARTQUEUE-ESP32-KEY"
 api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,17 +22,8 @@ app.add_middleware(
 
 Base.metadata.create_all(bind=engine)
 
-@app.websocket("/ws/{place_id}")
-async def websocket_endpoint(websocket: WebSocket, place_id: str):
-    await manager.connect(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-
 @app.post("/event", response_model=schemas.EventResponse)
-async def receive_event(
+def receive_event(
     event: schemas.EventIn,
     db: Session = Depends(get_db),
     api_key: str = Depends(api_key_header)
@@ -39,13 +31,12 @@ async def receive_event(
     if api_key != API_KEY:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    result = crud.handle_event(
-        db=db,
-        place_id=event.place_id,
-        event=event.event,
-        time=event.time
-    )
-
-    return result
-
-
+    try:
+        return crud.handle_event(
+            db=db,
+            place_id=event.place_id,
+            event=event.event,
+            time=event.time
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
