@@ -8,11 +8,9 @@ import schemas, crud
 
 app = FastAPI(title="Smart Queue Backend")
 
-# 🔐 Security
 API_KEY = "SMARTQUEUE-ESP32-KEY"
 api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,3 +38,4 @@ def receive_event(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
