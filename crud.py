@@ -49,11 +49,5 @@ def handle_event(
     return {
         "status": "OK",
         "current_count": place.current_count,
-        "message": "Event processed",
-        "payload": {
-            "place_id": place_id,
-            "current_count": place.current_count,
-            "event": event,
-            "time": log.time.isoformat()
-        }
+        "message": "Event processed"
     }
