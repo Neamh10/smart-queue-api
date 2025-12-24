@@ -1,22 +1,39 @@
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (
+    FastAPI,
+    Depends,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 from datetime import datetime
+
 from database import Base, engine, get_db
 import schemas, crud
 from manager import ConnectionManager
+from models import Place
 
 # ======================
 # App Init
 # ======================
 app = FastAPI(title="Smart Queue Backend")
 
+# ======================
+# Security
+# ======================
 API_KEY = "SMARTQUEUE-ESP32-KEY"
-api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
+api_key_header = APIKeyHeader(
+    name="X-API-KEY",
+    auto_error=False
+)
 
-manager = ConnectionManager()
+# ======================
+# Config
+# ======================
 CAPACITY_LIMIT = 10
+manager = ConnectionManager()
 
 # ======================
 # Middleware
@@ -29,17 +46,28 @@ app.add_middleware(
 )
 
 # ======================
-# Static Frontend
+# Database
 # ======================
-#app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
-
 Base.metadata.create_all(bind=engine)
 
 # ======================
-# WebSocket
+# Root
+# ======================
+@app.get("/")
+def root():
+    return {
+        "status": "OK",
+        "service": "Smart Queue Backend"
+    }
+
+# ======================
+# WebSocket (Dashboard)
 # ======================
 @app.websocket("/ws/{place_id}")
-async def websocket_endpoint(websocket: WebSocket, place_id: str):
+async def websocket_endpoint(
+    websocket: WebSocket,
+    place_id: str
+):
     await manager.connect(websocket)
     try:
         while True:
@@ -48,7 +76,7 @@ async def websocket_endpoint(websocket: WebSocket, place_id: str):
         manager.disconnect(websocket)
 
 # ======================
-# REST API
+# EVENT (ESP32 → Server)
 # ======================
 @app.post("/event", response_model=schemas.EventResponse)
 async def receive_event(
@@ -56,9 +84,11 @@ async def receive_event(
     db: Session = Depends(get_db),
     api_key: str = Depends(api_key_header)
 ):
+    #  API KEY
     if api_key != API_KEY:
         raise HTTPException(status_code=403, detail="Forbidden")
 
+    #  Business Logic (Single Source of Truth)
     result = crud.handle_event(
         db=db,
         place_id=event.place_id,
@@ -67,7 +97,7 @@ async def receive_event(
         capacity_limit=CAPACITY_LIMIT
     )
 
-  
+    #  Broadcast realtime update
     await manager.broadcast({
         "place_id": event.place_id,
         "current_count": result["current_count"],
@@ -78,31 +108,36 @@ async def receive_event(
     return result
 
 # ======================
-# Status
+# SYNC (ESP32 startup)
 # ======================
-
-@app.post("/event", response_model=schemas.EventResponse)
-def receive_event(
-    event: schemas.EventIn,
+@app.get("/sync")
+def sync_place(
+    place_id: str,
     db: Session = Depends(get_db),
     api_key: str = Depends(api_key_header)
 ):
     if api_key != API_KEY:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    try:
-        return crud.handle_event(
-            db=db,
-            place_id=event.place_id,
-            event=event.event,
-            time=event.time
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    place = (
+        db.query(Place)
+        .filter(Place.place_id == place_id)
+        .first()
+    )
+
+    return {
+        "place_id": place_id,
+        "current_count": place.current_count if place else 0,
+        "capacity": CAPACITY_LIMIT
+    }
+
 # ======================
-# Events (Pagination)
+# EVENTS HISTORY
 # ======================
-@app.get("/events/{place_id}", response_model=list[schemas.EventOut])
+@app.get(
+    "/events/{place_id}",
+    response_model=list[schemas.EventOut]
+)
 def get_events(
     place_id: str,
     page: int = 1,
@@ -122,6 +157,3 @@ def get_events(
 
     events.reverse()
     return events
-
-
-
