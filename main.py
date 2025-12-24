@@ -46,5 +46,6 @@ async def receive_event(
         time=event.time
     )
 
-    await manager.broadcast(result["payload"])
     return result
+
+
