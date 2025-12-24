@@ -10,7 +10,6 @@ def handle_event(
     event: str,
     time: datetime | None
 ):
-    # 1️⃣ Get or create place
     place = db.query(Place).filter(
         Place.place_id == place_id
     ).first()
@@ -25,7 +24,7 @@ def handle_event(
         db.commit()
         db.refresh(place)
 
-    # 2️⃣ Business logic
+    
     if event == "enter":
         if place.current_count >= place.capacity:
             return {
@@ -41,7 +40,7 @@ def handle_event(
     else:
         raise ValueError("Invalid event type")
 
-    # 3️⃣ Log event
+    
     log = VisitEvent(
         place_id=place_id,
         event=event,
@@ -58,3 +57,4 @@ def handle_event(
         "current_count": place.current_count,
         "message": "Event processed"
     }
+
