@@ -67,7 +67,7 @@ async def receive_event(
         capacity_limit=CAPACITY_LIMIT
     )
 
-    # 🔥 بث لحظي للـ Dashboard
+  
     await manager.broadcast({
         "place_id": event.place_id,
         "current_count": result["current_count"],
@@ -122,5 +122,6 @@ def get_events(
 
     events.reverse()
     return events
+
 
 
