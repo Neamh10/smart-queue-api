@@ -84,18 +84,29 @@ async def receive_event(
     db: Session = Depends(get_db),
     api_key: str = Depends(api_key_header)
 ):
-    #  API KEY
     if api_key != API_KEY:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    #  Business Logic (Single Source of Truth)
-    result = crud.handle_event(
-        db=db,
-        place_id=event.place_id,
-        event=event.event,
-        time=event.time,
-        capacity_limit=CAPACITY_LIMIT
-    )
+    try:
+        result = crud.handle_event(
+            db=db,
+            place_id=event.place_id,
+            event=event.event,
+            time=event.time,
+            capacity_limit=CAPACITY_LIMIT
+        )
+    except Exception as e:
+        print("HANDLE_EVENT ERROR:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    await manager.broadcast({
+        "place_id": event.place_id,
+        "current_count": result["current_count"],
+        "event": event.event,
+        "time": datetime.utcnow().isoformat()
+    })
+
+    return result
 
     #  Broadcast realtime update
     await manager.broadcast({
@@ -157,3 +168,4 @@ def get_events(
 
     events.reverse()
     return events
+
