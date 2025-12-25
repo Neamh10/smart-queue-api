@@ -17,6 +17,7 @@ def handle_event(
     if not place:
         place = Place(
             place_id=place_id,
+           capacity=CAPACITY_LIMIT,
             current_count=0
         )
         db.add(place)
