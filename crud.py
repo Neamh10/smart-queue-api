@@ -8,7 +8,8 @@ def handle_event(
     db: Session,
     place_id: str,
     event: str,
-    time: datetime | None
+    time: datetime | None,
+    capacity_limit: int
 ):
     place = db.query(Place).filter(
         Place.place_id == place_id
@@ -57,5 +58,6 @@ def handle_event(
         "current_count": place.current_count,
         "message": "Event processed"
     }
+
 
 
