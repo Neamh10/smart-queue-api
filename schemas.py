@@ -3,8 +3,8 @@ from typing import Optional
 from datetime import datetime
 
 class EventIn(BaseModel):
-    place_id: str
-    event: str          # enter | exit
+    place_id: str          # ✅ مهم جدًا
+    event: str             # enter | exit
     time: Optional[datetime] = None
 
 class EventResponse(BaseModel):
@@ -32,4 +32,6 @@ class EventOut(BaseModel):
     time: datetime
     current_count: int
     event: str
+
+
 
