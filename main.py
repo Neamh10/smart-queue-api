@@ -104,7 +104,7 @@ async def receive_event(
     })
 
     return result
-
+ 
     #  Broadcast realtime update
     await manager.broadcast({
         "place_id": event.place_id,
@@ -166,8 +166,4 @@ def get_events(
     events.reverse()
     return events
 
-    # Broadcast Real-Time
-    await manager.broadcast(result["payload"])
-
-    return result
 
