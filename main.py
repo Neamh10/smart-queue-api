@@ -64,10 +64,7 @@ def root():
 # WebSocket (Dashboard)
 # ======================
 @app.websocket("/ws/{place_id}")
-async def websocket_endpoint(
-    websocket: WebSocket,
-    place_id: str
-):
+async def websocket_endpoint(websocket: WebSocket, place_id: str):
     await manager.connect(websocket)
     try:
         while True:
@@ -168,4 +165,9 @@ def get_events(
 
     events.reverse()
     return events
+
+    # Broadcast Real-Time
+    await manager.broadcast(result["payload"])
+
+    return result
 
