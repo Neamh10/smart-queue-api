@@ -173,3 +173,10 @@ def confirm_reservation(db: Session, token: str, place_id: str):
     db.commit()
     return reservation, "CONFIRMED"
 
+def get_active_reservations(db: Session):
+    return (
+        db.query(Reservation)
+        .order_by(Reservation.expires_at.asc())
+        .all()
+    )
+
