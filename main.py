@@ -119,15 +119,12 @@ def confirm_reservation(
 # WebSocket (Dashboard)
 # ======================
 @app.websocket("/ws/{place_id}")
-async def websocket_endpoint(
-    websocket: WebSocket,
-    place_id: str
-):
-    await manager.connect(websocket)
-
+async def websocket_endpoint(websocket: WebSocket, place_id: str):
+    await manager.connect(websocket, place_id)
     try:
         while True:
-            # Dashboard لا يرسل بيانات حالياً
             await websocket.receive_text()
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        manager.disconnect(websocket, place_id)
+
+
