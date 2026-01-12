@@ -1,7 +1,6 @@
 from sqlalchemy import Column, String, Integer, DateTime, Boolean
-from datetime import datetime, timedelta
+from datetime import datetime
 from database import Base
-
 
 class Place(Base):
     __tablename__ = "places"
@@ -9,6 +8,16 @@ class Place(Base):
     place_id = Column(String, primary_key=True, index=True)
     current_count = Column(Integer, default=0)
     capacity = Column(Integer, default=10)
+
+
+class VisitEvent(Base):
+    __tablename__ = "visit_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    place_id = Column(String, index=True)
+    event = Column(String)  # enter | exit
+    current_count = Column(Integer)
+    time = Column(DateTime, default=datetime.utcnow)
 
 
 class Reservation(Base):
@@ -19,7 +28,3 @@ class Reservation(Base):
     to_place = Column(String, index=True)
     expires_at = Column(DateTime)
     confirmed = Column(Boolean, default=False)
-
-    @staticmethod
-    def expiry(minutes=3):
-        return datetime.utcnow() + timedelta(minutes=minutes)
