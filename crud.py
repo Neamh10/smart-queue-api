@@ -17,13 +17,16 @@ def generate_token():
 # =========================
 # MAIN EVENT HANDLER
 # =========================
+from typing import Optional
+
 def handle_event(
     db: Session,
     place_id: str,
     event: str,
-    time: datetime | None,
+    time: Optional[datetime],
     capacity_limit: int
 ):
+
     place = db.query(Place).filter_by(place_id=place_id).first()
 
     if not place:
@@ -169,3 +172,4 @@ def confirm_reservation(db: Session, token: str, place_id: str):
     reservation.confirmed = True
     db.commit()
     return reservation, "CONFIRMED"
+
