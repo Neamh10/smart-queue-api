@@ -66,19 +66,10 @@ async def receive_event(
     db: Session = Depends(get_db),
     api_key: str = Depends(api_key_header)
 ):
-   
-    event: schemas.EventIn,
-    db: Session = Depends(get_db),
-    api_key: str = Depends(api_key_header)
-):
-    # Security check
     if api_key != API_KEY:
-        raise HTTPException(
-            status_code=403,
-            detail="Forbidden"
-        )
+        raise HTTPException(status_code=403, detail="Forbidden")
 
-    # Core logic handled in CRUD
+    # 1️⃣ Core Logic
     result = crud.handle_event(
         db=db,
         place_id=event.place_id,
@@ -87,6 +78,17 @@ async def receive_event(
         capacity_limit=CAPACITY_LIMIT
     )
 
+    # 2️⃣ 🔥 WebSocket Broadcast (هنا بالضبط)
+    await manager.broadcast(
+        place_id=event.place_id,
+        data={
+            "place_id": event.place_id,
+            "current_count": result["current_count"],
+            "status": result["status"]
+        }
+    )
+
+    # 3️⃣ HTTP Response للـ ESP32
     return result
 
 # ======================
@@ -128,6 +130,3 @@ async def websocket_endpoint(websocket: WebSocket, place_id: str):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
-
-
-
