@@ -1,7 +1,6 @@
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import uuid
-
 from models import Place, VisitEvent, Reservation
 
 CAPACITY_LIMIT = 10
@@ -37,31 +36,54 @@ def handle_event(
         db.commit()
         db.refresh(place)
 
-    # -------------------------
+    # =========================
     # ENTER
-    # -------------------------
+    # =========================
     if event == "enter":
+
+        # 🔴 المكان ممتلئ → Smart Decision
         if place.current_count >= place.capacity:
+            # ⚠️ اختيار مكان بديل (مؤقتًا ثابت)
+            redirect_place = "hall_2"
+
+            try:
+                reservation = create_reservation(
+                    db,
+                    from_place=place_id,
+                    to_place=redirect_place
+                )
+            except ValueError:
+                return {
+                    "status": "FULL",
+                    "place_id": place_id,
+                    "current_count": place.current_count,
+                    "message": "All places are full"
+                }
+
             return {
                 "status": "FULL",
+                "place_id": place_id,
                 "current_count": place.current_count,
-                "message": "Capacity reached"
+                "redirect_to": reservation.to_place,
+                "token": reservation.token,
+                "message": "Redirect to another hall"
             }
 
+        # 🟢 دخول طبيعي
         place.current_count += 1
 
-    # -------------------------
+    # =========================
     # EXIT
-    # -------------------------
+    # =========================
     elif event == "exit":
         place.current_count = max(0, place.current_count - 1)
 
     else:
         raise ValueError("Invalid event type")
 
-    # -------------------------
+    # =========================
     # LOG EVENT
-    # -------------------------
+    # =========================
     log = VisitEvent(
         place_id=place_id,
         event=event,
@@ -75,10 +97,10 @@ def handle_event(
 
     return {
         "status": "OK",
+        "place_id": place_id,
         "current_count": place.current_count,
         "message": "Event processed"
     }
-
 
 # =========================
 # CREATE RESERVATION
