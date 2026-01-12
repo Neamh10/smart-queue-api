@@ -8,10 +8,8 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
-from datetime import datetime
 
 from database import Base, engine, get_db
-from models import Place
 import crud
 import schemas
 from manager import ConnectionManager
@@ -21,6 +19,7 @@ from manager import ConnectionManager
 # ======================
 app = FastAPI(title="Smart Queue Backend")
 
+# Create DB tables
 Base.metadata.create_all(bind=engine)
 
 # ======================
@@ -61,15 +60,23 @@ def root():
 # ======================
 # EVENT (ESP32 → Server)
 # ======================
-@app.post("/event", response_model=schemas.EventResponse)
+@app.post(
+    "/event",
+    response_model=schemas.EventResponse
+)
 def receive_event(
     event: schemas.EventIn,
     db: Session = Depends(get_db),
     api_key: str = Depends(api_key_header)
 ):
+    # Security check
     if api_key != API_KEY:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(
+            status_code=403,
+            detail="Forbidden"
+        )
 
+    # Core logic handled in CRUD
     result = crud.handle_event(
         db=db,
         place_id=event.place_id,
@@ -83,20 +90,29 @@ def receive_event(
 # ======================
 # CONFIRM RESERVATION
 # ======================
-@app.post("/confirm")
+@app.post(
+    "/confirm",
+    response_model=schemas.ConfirmReservationResponse
+)
 def confirm_reservation(
-    token: str,
-    place_id: str,
+    data: schemas.ConfirmReservationIn,
     db: Session = Depends(get_db)
 ):
-    reservation, status = crud.confirm_reservation(db, token, place_id)
+    reservation, status = crud.confirm_reservation(
+        db=db,
+        token=data.token,
+        place_id=data.place_id
+    )
 
     if status != "CONFIRMED":
-        raise HTTPException(400, status)
+        raise HTTPException(
+            status_code=400,
+            detail=status
+        )
 
     return {
         "status": "CONFIRMED",
-        "place_id": place_id
+        "place_id": data.place_id
     }
 
 # ======================
@@ -108,8 +124,10 @@ async def websocket_endpoint(
     place_id: str
 ):
     await manager.connect(websocket)
+
     try:
         while True:
+            # Dashboard لا يرسل بيانات حالياً
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
