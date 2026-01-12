@@ -46,8 +46,17 @@ class EventLog(BaseModel):
     event: str
     current_count: int
 
+class ReservationOut(BaseModel):
+    token: str
+    from_place: str
+    to_place: str
+    confirmed: bool
+    expires_at: datetime
+
+
 
 class PlaceStatus(BaseModel):
     place_id: str
     current_count: int
     capacity: int
+
