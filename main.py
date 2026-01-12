@@ -119,6 +119,17 @@ def confirm_reservation(
         "place_id": data.place_id
     }
 
+@app.get(
+    "/reservations",
+    response_model=list[schemas.ReservationOut]
+)
+def list_reservations(
+    db: Session = Depends(get_db)
+):
+    reservations = crud.get_active_reservations(db)
+    return reservations
+
+
 # ======================
 # WebSocket (Dashboard)
 # ======================
@@ -130,3 +141,4 @@ async def websocket_endpoint(websocket: WebSocket, place_id: str):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
+
