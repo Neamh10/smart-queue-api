@@ -60,11 +60,13 @@ def root():
 # ======================
 # EVENT (ESP32 → Server)
 # ======================
-@app.post(
-    "/event",
-    response_model=schemas.EventResponse
-)
-def receive_event(
+@app.post("/event", response_model=schemas.EventResponse)
+async def receive_event(
+    event: schemas.EventIn,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(api_key_header)
+):
+   
     event: schemas.EventIn,
     db: Session = Depends(get_db),
     api_key: str = Depends(api_key_header)
@@ -126,5 +128,6 @@ async def websocket_endpoint(websocket: WebSocket, place_id: str):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
+
 
 
