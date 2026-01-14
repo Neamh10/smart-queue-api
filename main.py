@@ -1,3 +1,4 @@
+import os
 from fastapi import (
     FastAPI,
     Depends,
@@ -14,6 +15,7 @@ import crud
 import schemas
 from manager import ConnectionManager
 
+
 # ======================
 # App Init
 # ======================
@@ -22,14 +24,22 @@ app = FastAPI(title="Smart Queue Backend")
 # Create DB tables
 Base.metadata.create_all(bind=engine)
 
+
 # ======================
-# Security
+# Security (API KEY)
 # ======================
-API_KEY = "SMARTQUEUE-ESP32-KEY"
+API_KEY = os.getenv("SMARTQUEUE_API_KEY", "DEV-KEY-CHANGE-ME")
+
 api_key_header = APIKeyHeader(
     name="X-API-KEY",
     auto_error=False
 )
+
+
+def verify_api_key(api_key: str = Depends(api_key_header)):
+    if api_key != API_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
 
 # ======================
 # Config
@@ -37,15 +47,21 @@ api_key_header = APIKeyHeader(
 CAPACITY_LIMIT = 10
 manager = ConnectionManager()
 
+
 # ======================
-# Middleware
+# Middleware (CORS)
 # ======================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:5500"
+    ],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
+    allow_credentials=True
 )
+
 
 # ======================
 # Root
@@ -57,19 +73,20 @@ def root():
         "service": "Smart Queue Backend"
     }
 
+
 # ======================
 # EVENT (ESP32 → Server)
 # ======================
-@app.post("/event", response_model=schemas.EventResponse)
+@app.post(
+    "/event",
+    response_model=schemas.EventResponse,
+    dependencies=[Depends(verify_api_key)]
+)
 async def receive_event(
     event: schemas.EventIn,
-    db: Session = Depends(get_db),
-    api_key: str = Depends(api_key_header)
+    db: Session = Depends(get_db)
 ):
-    if api_key != API_KEY:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    # 1️⃣ Core Logic
+    # 1️⃣ Core Business Logic
     result = crud.handle_event(
         db=db,
         place_id=event.place_id,
@@ -78,7 +95,7 @@ async def receive_event(
         capacity_limit=CAPACITY_LIMIT
     )
 
-    # 2️⃣ 🔥 WebSocket Broadcast (هنا بالضبط)
+    # 2️⃣ WebSocket Broadcast (Dashboard)
     await manager.broadcast(
         place_id=event.place_id,
         data={
@@ -88,15 +105,17 @@ async def receive_event(
         }
     )
 
-    # 3️⃣ HTTP Response للـ ESP32
+    # 3️⃣ Response to ESP32
     return result
+
 
 # ======================
 # CONFIRM RESERVATION
 # ======================
 @app.post(
     "/confirm",
-    response_model=schemas.ConfirmReservationResponse
+    response_model=schemas.ConfirmReservationResponse,
+    dependencies=[Depends(verify_api_key)]
 )
 def confirm_reservation(
     data: schemas.ConfirmReservationIn,
@@ -106,11 +125,6 @@ def confirm_reservation(
         db=db,
         token=data.token,
         place_id=data.place_id
-        
-@app.get("/reservations", response_model=list[schemas.ReservationOut])
-def list_reservations(db: Session = Depends(get_db)):
-    crud.cleanup_expired_reservations(db)  
-    return crud.get_active_reservations(db) 
     )
 
     if status != "CONFIRMED":
@@ -124,28 +138,33 @@ def list_reservations(db: Session = Depends(get_db)):
         "place_id": data.place_id
     }
 
+
+# ======================
+# RESERVATIONS (Dashboard)
+# ======================
 @app.get(
     "/reservations",
-    response_model=list[schemas.ReservationOut]
+    response_model=list[schemas.ReservationOut],
+    dependencies=[Depends(verify_api_key)]
 )
 def list_reservations(
     db: Session = Depends(get_db)
 ):
-    reservations = crud.get_active_reservations(db)
-    return reservations
+    crud.cleanup_expired_reservations(db)
+    return crud.get_active_reservations(db)
 
 
 # ======================
 # WebSocket (Dashboard)
 # ======================
 @app.websocket("/ws/{place_id}")
-async def websocket_endpoint(websocket: WebSocket, place_id: str):
+async def websocket_endpoint(
+    websocket: WebSocket,
+    place_id: str
+):
     await manager.connect(websocket, place_id)
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
-
-
-
