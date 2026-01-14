@@ -10,6 +10,44 @@ CAPACITY_LIMIT = 10
 RESERVATION_TIMEOUT = 120  # seconds
 
 
+def create_reservation_locked(db: Session, from_place: str, to_place: str):
+    token = generate_token()
+
+    target = (
+        db.query(Place)
+        .filter_by(place_id=to_place)
+        .with_for_update()   # 🔐 LOCK
+        .first()
+    )
+
+    if not target:
+        target = Place(
+            place_id=to_place,
+            capacity=CAPACITY_LIMIT,
+            current_count=0
+        )
+        db.add(target)
+        db.flush()
+
+    if target.current_count >= target.capacity:
+        raise ValueError("Target place full")
+
+    target.current_count += 1
+
+    reservation = Reservation(
+        token=token,
+        from_place=from_place,
+        to_place=to_place,
+        expires_at=datetime.utcnow() + timedelta(seconds=RESERVATION_TIMEOUT),
+        confirmed=False
+    )
+
+    db.add(reservation)
+    db.flush()
+
+    return reservation
+
+
 # =========================
 # Utils
 # =========================
