@@ -58,7 +58,6 @@ def generate_token():
 # =========================
 # MAIN EVENT HANDLER
 # =========================
-
 def handle_event(
     db: Session,
     place_id: str,
@@ -98,6 +97,8 @@ def handle_event(
                     to_place=redirect_place
                 )
 
+                db.commit()  # 🔐 RELEASE LOCK + SAVE (مهم جدًا)
+
                 return {
                     "status": "FULL",
                     "place_id": place_id,
@@ -107,6 +108,7 @@ def handle_event(
                     "message": "Redirect to another hall"
                 }
 
+            # 🟢 دخول طبيعي
             place.current_count += 1
 
         # =========================
@@ -118,6 +120,9 @@ def handle_event(
         else:
             raise ValueError("Invalid event type")
 
+        # =========================
+        # LOG EVENT
+        # =========================
         log = VisitEvent(
             place_id=place_id,
             event=event,
