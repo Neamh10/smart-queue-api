@@ -2,6 +2,9 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import uuid
 from models import Place, VisitEvent, Reservation
+from sqlalchemy.exc import SQLAlchemyError
+
+
 
 CAPACITY_LIMIT = 10
 RESERVATION_TIMEOUT = 120  # seconds
@@ -17,93 +20,86 @@ def generate_token():
 # =========================
 # MAIN EVENT HANDLER
 # =========================
-from typing import Optional
 
 def handle_event(
     db: Session,
     place_id: str,
     event: str,
-    time: Optional[datetime],
+    time: datetime | None,
     capacity_limit: int
 ):
-
-    place = db.query(Place).filter_by(place_id=place_id).first()
-
-    if not place:
-        place = Place(
-            place_id=place_id,
-            capacity=capacity_limit,
-            current_count=0
+    try:
+        # 🔒 START TRANSACTION
+        place = (
+            db.query(Place)
+            .filter_by(place_id=place_id)
+            .with_for_update()   # 🔐 LOCK
+            .first()
         )
-        db.add(place)
-        db.commit()
-        db.refresh(place)
 
-    # =========================
-    # ENTER
-    # =========================
-    if event == "enter":
+        if not place:
+            place = Place(
+                place_id=place_id,
+                capacity=capacity_limit,
+                current_count=0
+            )
+            db.add(place)
+            db.flush()  # لا نعمل commit بعد
 
-        # 🔴 المكان ممتلئ → Smart Decision
-        if place.current_count >= place.capacity:
-            # ⚠️ اختيار مكان بديل (مؤقتًا ثابت)
-            redirect_place = "hall_2"
+        # =========================
+        # ENTER
+        # =========================
+        if event == "enter":
 
-            try:
-                reservation = create_reservation(
+            if place.current_count >= place.capacity:
+                redirect_place = "hall_2"
+
+                reservation = create_reservation_locked(
                     db,
                     from_place=place_id,
                     to_place=redirect_place
                 )
-            except ValueError:
+
                 return {
                     "status": "FULL",
                     "place_id": place_id,
                     "current_count": place.current_count,
-                    "message": "All places are full"
+                    "redirect_to": reservation.to_place,
+                    "token": reservation.token,
+                    "message": "Redirect to another hall"
                 }
 
-            return {
-                "status": "FULL",
-                "place_id": place_id,
-                "current_count": place.current_count,
-                "redirect_to": reservation.to_place,
-                "token": reservation.token,
-                "message": "Redirect to another hall"
-            }
+            place.current_count += 1
 
-        # 🟢 دخول طبيعي
-        place.current_count += 1
+        # =========================
+        # EXIT
+        # =========================
+        elif event == "exit":
+            place.current_count = max(0, place.current_count - 1)
 
-    # =========================
-    # EXIT
-    # =========================
-    elif event == "exit":
-        place.current_count = max(0, place.current_count - 1)
+        else:
+            raise ValueError("Invalid event type")
 
-    else:
-        raise ValueError("Invalid event type")
+        log = VisitEvent(
+            place_id=place_id,
+            event=event,
+            current_count=place.current_count,
+            time=time or datetime.utcnow()
+        )
 
-    # =========================
-    # LOG EVENT
-    # =========================
-    log = VisitEvent(
-        place_id=place_id,
-        event=event,
-        current_count=place.current_count,
-        time=time or datetime.utcnow()
-    )
+        db.add(log)
+        db.commit()   # ✅ RELEASE LOCK
 
-    db.add(log)
-    db.commit()
-    db.refresh(place)
+        return {
+            "status": "OK",
+            "place_id": place_id,
+            "current_count": place.current_count,
+            "message": "Event processed"
+        }
 
-    return {
-        "status": "OK",
-        "place_id": place_id,
-        "current_count": place.current_count,
-        "message": "Event processed"
-    }
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise e
 
 # =========================
 # CREATE RESERVATION
