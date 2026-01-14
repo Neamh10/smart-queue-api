@@ -106,6 +106,14 @@ def confirm_reservation(
         db=db,
         token=data.token,
         place_id=data.place_id
+
+@app.get("/reservations", response_model=list[schemas.ReservationOut])
+def list_reservations(db: Session = Depends(get_db)):
+    crud.cleanup_expired_reservations(db)  
+    return crud.get_active_reservations(db)
+
+
+        
     )
 
     if status != "CONFIRMED":
@@ -141,4 +149,5 @@ async def websocket_endpoint(websocket: WebSocket, place_id: str):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
+
 
