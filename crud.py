@@ -180,3 +180,22 @@ def get_active_reservations(db: Session):
         .all()
     )
 
+
+def cleanup_expired_reservations(db: Session):
+    expired = (
+        db.query(Reservation)
+        .filter(Reservation.expires_at < datetime.utcnow())
+        .all()
+    )
+
+    for r in expired:
+        place = db.query(Place).filter_by(
+            place_id=r.to_place
+        ).first()
+
+        if place:
+            place.current_count = max(0, place.current_count - 1)
+
+        db.delete(r)
+
+    db.commit()
