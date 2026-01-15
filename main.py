@@ -8,8 +8,8 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
+from fastapi import Security
 from sqlalchemy.orm import Session
-
 from database import Base, engine, get_db
 import crud
 import schemas
@@ -29,16 +29,14 @@ Base.metadata.create_all(bind=engine)
 # Security (API KEY)
 # ======================
 API_KEY = os.getenv("SMARTQUEUE_API_KEY")
+api_key_header = APIKeyHeader(name="X-API-KEY")
 
-api_key_header = APIKeyHeader(
-    name="X-API-KEY",
-    auto_error=False
-)
+def verify_api_key(api_key: str = Security(api_key_header)):
+    if API_KEY is None:
+        raise HTTPException(status_code=500, detail="API KEY not configured")
 
-
-def verify_api_key(api_key: str = Depends(api_key_header)):
     if api_key != API_KEY:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Invalid API Key")
 
 
 # ======================
@@ -168,4 +166,5 @@ async def websocket_endpoint(
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
+
 
