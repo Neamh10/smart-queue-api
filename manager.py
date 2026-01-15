@@ -22,7 +22,4 @@ class ConnectionManager:
         for websocket in self.active_connections[place_id]:
             await websocket.send_json(data)
 
-async def broadcast_all(self, data: dict):
-    for conns in self.active_connections.values():
-        for ws in conns:
-            await ws.send_json(data)
+
