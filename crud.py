@@ -1,179 +1,167 @@
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
-import uuid
-from models import Place, VisitEvent, Reservation
+import secrets
 
-CAPACITY_LIMIT = 10
+from models import Place, Reservation
+
+
 RESERVATION_TIMEOUT = 120  # seconds
 
 
-# =========================
-# Utils
-# =========================
-def generate_token():
-    return uuid.uuid4().hex[:8].upper()
-
-
-# =========================
-# MAIN EVENT HANDLER
-# =========================
-def handle_event(
-    db: Session,
-    place_id: str,
-    event: str,
-    time: datetime | None,
-    capacity_limit: int
-):
-    place = db.query(Place).filter_by(place_id=place_id).first()
-
+# ======================
+# Helpers
+# ======================
+def get_or_create_place(db: Session, place_id: str, capacity_limit: int):
+    place = db.query(Place).filter_by(id=place_id).first()
     if not place:
         place = Place(
-            place_id=place_id,
-            capacity=capacity_limit,
-            current_count=0
+            id=place_id,
+            current_count=0,
+            capacity=capacity_limit
         )
         db.add(place)
         db.commit()
         db.refresh(place)
+    return place
 
-    # =========================
-    # ENTER
-    # =========================
-    if event == "enter":
 
-        # 🔴 المكان ممتلئ → Smart Decision
-        if place.current_count >= place.capacity:
-            # ⚠️ اختيار مكان بديل (مؤقتًا ثابت)
-            redirect_place = "hall_2"
-
-            try:
-                reservation = create_reservation(
-                    db,
-                    from_place=place_id,
-                    to_place=redirect_place
-                )
-            except ValueError:
-                return {
-                    "status": "FULL",
-                    "place_id": place_id,
-                    "current_count": place.current_count,
-                    "message": "All places are full"
-                }
-
-            return {
-                "status": "FULL",
-                "place_id": place_id,
-                "current_count": place.current_count,
-                "redirect_to": reservation.to_place,
-                "token": reservation.token,
-                "message": "Redirect to another hall"
-            }
-
-        # 🟢 دخول طبيعي
-        place.current_count += 1
-
-    # =========================
-    # EXIT
-    # =========================
-    elif event == "exit":
-        place.current_count = max(0, place.current_count - 1)
-
-    else:
-        raise ValueError("Invalid event type")
-
-    # =========================
-    # LOG EVENT
-    # =========================
-    log = VisitEvent(
-        place_id=place_id,
-        event=event,
-        current_count=place.current_count,
-        time=time or datetime.utcnow()
+def cleanup_expired_reservations(db: Session):
+    now = datetime.utcnow()
+    expired = (
+        db.query(Reservation)
+        .filter(
+            Reservation.expires_at < now,
+            Reservation.confirmed == False
+        )
+        .all()
     )
 
-    db.add(log)
+    for r in expired:
+        place = db.query(Place).filter_by(id=r.to_place).first()
+        if place and place.current_count > 0:
+            place.current_count -= 1
+        db.delete(r)
+
     db.commit()
-    db.refresh(place)
 
-    return {
-        "status": "OK",
-        "place_id": place_id,
-        "current_count": place.current_count,
-        "message": "Event processed"
-    }
 
-# =========================
-# CREATE RESERVATION
-# =========================
-def create_reservation(db: Session, from_place: str, to_place: str):
-    token = generate_token()
-
-    target = db.query(Place).filter_by(place_id=to_place).first()
-    if not target:
-        target = Place(
-            place_id=to_place,
-            capacity=CAPACITY_LIMIT,
-            current_count=0
+def find_available_place(db: Session, exclude_place: str):
+    return (
+        db.query(Place)
+        .filter(
+            Place.id != exclude_place,
+            Place.current_count < Place.capacity
         )
-        db.add(target)
+        .first()
+    )
+
+
+# ======================
+# Core Logic
+# ======================
+def handle_event(
+    db: Session,
+    place_id: str,
+    event: str,
+    time,
+    capacity_limit: int
+):
+    cleanup_expired_reservations(db)
+
+    place = get_or_create_place(db, place_id, capacity_limit)
+
+    if event == "exit":
+        if place.current_count > 0:
+            place.current_count -= 1
+            db.commit()
+
+        return {
+            "status": "OK",
+            "place_id": place_id,
+            "current_count": place.current_count,
+            "redirect_to": None,
+            "token": None
+        }
+
+    # ========= ENTER =========
+    if place.current_count < place.capacity:
+        place.current_count += 1
         db.commit()
-        db.refresh(target)
 
-    if target.current_count >= target.capacity:
-        raise ValueError("Target place full")
+        return {
+            "status": "OK",
+            "place_id": place_id,
+            "current_count": place.current_count,
+            "redirect_to": None,
+            "token": None
+        }
 
-    # حجز فعلي (زيادة العدّاد)
-    target.current_count += 1
+    # ========= FULL =========
+    alt_place = find_available_place(db, place_id)
+
+    if not alt_place:
+        return {
+            "status": "FULL",
+            "place_id": place_id,
+            "current_count": place.current_count,
+            "redirect_to": None,
+            "token": None,
+            "message": "All places are full"
+        }
+
+    # 🔐 Create Reservation
+    token = secrets.token_hex(4)
 
     reservation = Reservation(
         token=token,
-        from_place=from_place,
-        to_place=to_place,
+        from_place=place_id,
+        to_place=alt_place.id,
         expires_at=datetime.utcnow() + timedelta(seconds=RESERVATION_TIMEOUT),
         confirmed=False
     )
 
+    # 🔒 Reserve spot immediately
+    alt_place.current_count += 1
+
     db.add(reservation)
     db.commit()
-    db.refresh(reservation)
 
-    return reservation
+    return {
+        "status": "FULL",
+        "place_id": place_id,
+        "current_count": place.current_count,
+        "redirect_to": alt_place.id,
+        "token": token
+    }
 
 
-# =========================
-# CONFIRM RESERVATION
-# =========================
+# ======================
+# Confirm Reservation
+# ======================
 def confirm_reservation(db: Session, token: str, place_id: str):
-    reservation = db.query(Reservation).filter_by(token=token).first()
+    cleanup_expired_reservations(db)
+
+    reservation = (
+        db.query(Reservation)
+        .filter_by(token=token, to_place=place_id)
+        .first()
+    )
 
     if not reservation:
-        return None, "INVALID"
+        return None, "INVALID_TOKEN"
 
     if reservation.confirmed:
-        return None, "ALREADY_CONFIRMED"
-
-    if reservation.to_place != place_id:
-        return None, "WRONG_PLACE"
+        return reservation, "ALREADY_CONFIRMED"
 
     if reservation.expires_at < datetime.utcnow():
-        # إلغاء الحجز
-        place = db.query(Place).filter_by(
-            place_id=reservation.to_place
-        ).first()
-        place.current_count = max(0, place.current_count - 1)
-
-        db.delete(reservation)
-        db.commit()
         return None, "EXPIRED"
 
     reservation.confirmed = True
     db.commit()
+
     return reservation, "CONFIRMED"
 
-def get_active_reservations(db: Session):
-    return (
-        db.query(Reservation)
-        .order_by(Reservation.expires_at.asc())
-        .all()
-    )
 
+def get_active_reservations(db: Session):
+    cleanup_expired_reservations(db)
+    return db.query(Reservation).all()
