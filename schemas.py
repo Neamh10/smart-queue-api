@@ -32,27 +32,17 @@ class EventResponse(BaseModel):
     # optional (for logs / dashboard)
     message: Optional[str] = None
 
-
 class ConfirmReservationResponse(BaseModel):
     status: str                # CONFIRMED
     place_id: str
-
-
 # ======================
 # DASHBOARD
 # ======================
+
 class EventLog(BaseModel):
     time: datetime
     event: str
     current_count: int
-
-class ReservationOut(BaseModel):
-    token: str
-    from_place: str
-    to_place: str
-    confirmed: bool
-    expires_at: datetime
-
 
 
 class PlaceStatus(BaseModel):
@@ -60,3 +50,9 @@ class PlaceStatus(BaseModel):
     current_count: int
     capacity: int
 
+class ReservationOut(BaseModel):
+    token: str
+    from_place: str
+    to_place: str
+    confirmed: bool
+    expires_at: datetime
