@@ -15,6 +15,7 @@ import crud
 import schemas
 from manager import ConnectionManager
 
+print("🔑 ENV SMARTQUEUE_API_KEY =", os.getenv("SMARTQUEUE_API_KEY"))
 
 # ======================
 # App Init
@@ -166,5 +167,6 @@ async def websocket_endpoint(
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
+
 
 
