@@ -1,15 +1,21 @@
 from pydantic import BaseModel
-from typing import Optional
 from datetime import datetime
+from typing import Optional
 
 
-# ======================
-# INPUT
-# ======================
 class EventIn(BaseModel):
-    place_id: str              # hall_1
-    event: str                 # enter | exit
+    place_id: str
+    event: str
     time: Optional[datetime] = None
+
+
+class EventResponse(BaseModel):
+    status: str
+    place_id: str
+    current_count: int
+    redirect_to: Optional[str]
+    token: Optional[str]
+    message: Optional[str] = None
 
 
 class ConfirmReservationIn(BaseModel):
@@ -17,42 +23,17 @@ class ConfirmReservationIn(BaseModel):
     place_id: str
 
 
-# ======================
-# OUTPUT
-# ======================
-class EventResponse(BaseModel):
-    status: str                # OK | FULL
-    place_id: str
-    current_count: int
-
-    # FULL only
-    redirect_to: Optional[str] = None
-    token: Optional[str] = None
-
-    # optional (for logs / dashboard)
-    message: Optional[str] = None
-
 class ConfirmReservationResponse(BaseModel):
-    status: str                # CONFIRMED
+    status: str
     place_id: str
-# ======================
-# DASHBOARD
-# ======================
 
-class EventLog(BaseModel):
-    time: datetime
-    event: str
-    current_count: int
-
-
-class PlaceStatus(BaseModel):
-    place_id: str
-    current_count: int
-    capacity: int
 
 class ReservationOut(BaseModel):
     token: str
     from_place: str
     to_place: str
-    confirmed: bool
     expires_at: datetime
+    confirmed: bool
+
+    class Config:
+        from_attributes = True
