@@ -21,5 +21,3 @@ class ConnectionManager:
 
         for websocket in self.active_connections[place_id]:
             await websocket.send_json(data)
-
-
