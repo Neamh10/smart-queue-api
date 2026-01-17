@@ -4,8 +4,7 @@ from fastapi import (
     Depends,
     HTTPException,
     WebSocket,
-    WebSocketDisconnect,
-    Security
+    WebSocketDisconnect
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
@@ -16,32 +15,31 @@ import crud
 import schemas
 from manager import ConnectionManager
 
+
 # ======================
 # App Init
 # ======================
 app = FastAPI(title="Smart Queue Backend")
 
+# Create DB tables
 Base.metadata.create_all(bind=engine)
 
+
 # ======================
-# Security
+# Security (API KEY)
 # ======================
-api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
+API_KEY = os.getenv("SMARTQUEUE_API_KEY", "DEV-KEY-CHANGE-ME")
 
-def verify_api_key(api_key: str = Security(api_key_header)):
-    expected_key = os.environ.get("SMARTQUEUE_API_KEY")
+api_key_header = APIKeyHeader(
+    name="X-API-KEY",
+    auto_error=False
+)
 
-    if not expected_key:
-        raise HTTPException(
-            status_code=500,
-            detail="API KEY not configured"
-        )
 
-    if api_key != expected_key:
-        raise HTTPException(
-            status_code=403,
-            detail="Invalid API Key"
-        )
+def verify_api_key(api_key: str = Depends(api_key_header)):
+    if api_key != API_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
 
 # ======================
 # Config
@@ -49,25 +47,35 @@ def verify_api_key(api_key: str = Security(api_key_header)):
 CAPACITY_LIMIT = 10
 manager = ConnectionManager()
 
+
 # ======================
-# Middleware
+# Middleware (CORS)
 # ======================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:5500"
+    ],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
+    allow_credentials=True
 )
+
 
 # ======================
 # Root
 # ======================
 @app.get("/")
 def root():
-    return {"status": "OK"}
+    return {
+        "status": "OK",
+        "service": "Smart Queue Backend"
+    }
+
 
 # ======================
-# EVENT
+# EVENT (ESP32 → Server)
 # ======================
 @app.post(
     "/event",
@@ -78,6 +86,7 @@ async def receive_event(
     event: schemas.EventIn,
     db: Session = Depends(get_db)
 ):
+    # 1️⃣ Core Business Logic
     result = crud.handle_event(
         db=db,
         place_id=event.place_id,
@@ -86,6 +95,7 @@ async def receive_event(
         capacity_limit=CAPACITY_LIMIT
     )
 
+    # 2️⃣ WebSocket Broadcast (Dashboard)
     await manager.broadcast(
         place_id=event.place_id,
         data={
@@ -95,10 +105,12 @@ async def receive_event(
         }
     )
 
+    # 3️⃣ Response to ESP32
     return result
 
+
 # ======================
-# CONFIRM
+# CONFIRM RESERVATION
 # ======================
 @app.post(
     "/confirm",
@@ -116,27 +128,40 @@ def confirm_reservation(
     )
 
     if status != "CONFIRMED":
-        raise HTTPException(status_code=400, detail=status)
+        raise HTTPException(
+            status_code=400,
+            detail=status
+        )
 
-    return {"status": "CONFIRMED"}
+    return {
+        "status": "CONFIRMED",
+        "place_id": data.place_id
+    }
+
 
 # ======================
-# RESERVATIONS
+# RESERVATIONS (Dashboard)
 # ======================
 @app.get(
     "/reservations",
     response_model=list[schemas.ReservationOut],
     dependencies=[Depends(verify_api_key)]
 )
-def list_reservations(db: Session = Depends(get_db)):
+def list_reservations(
+    db: Session = Depends(get_db)
+):
     crud.cleanup_expired_reservations(db)
     return crud.get_active_reservations(db)
 
+
 # ======================
-# WebSocket
+# WebSocket (Dashboard)
 # ======================
 @app.websocket("/ws/{place_id}")
-async def websocket_endpoint(websocket: WebSocket, place_id: str):
+async def websocket_endpoint(
+    websocket: WebSocket,
+    place_id: str
+):
     await manager.connect(websocket, place_id)
     try:
         while True:
