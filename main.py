@@ -73,3 +73,9 @@ async def websocket_endpoint(ws: WebSocket, place_id: str):
             await ws.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(ws, place_id)
+
+@app.get("/debug-env")
+def debug_env():
+    return {
+        "SMARTQUEUE_API_KEY": os.getenv("SMARTQUEUE_API_KEY")
+    }
