@@ -10,12 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from fastapi import Security
 from sqlalchemy.orm import Session
+
 from database import Base, engine, get_db
 import crud
 import schemas
 from manager import ConnectionManager
 
-print("🔑 ENV SMARTQUEUE_API_KEY =", os.getenv("SMARTQUEUE_API_KEY"))
 
 # ======================
 # App Init
@@ -29,15 +29,28 @@ Base.metadata.create_all(bind=engine)
 # ======================
 # Security (API KEY)
 # ======================
-API_KEY = os.getenv("SMARTQUEUE_API_KEY")
-api_key_header = APIKeyHeader(name="X-API-KEY")
+api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
 
 def verify_api_key(api_key: str = Security(api_key_header)):
-    if API_KEY is None:
-        raise HTTPException(status_code=500, detail="API KEY not configured")
+    """
+    🔐 API Key verification (Production-safe)
+    - Reads ENV at request time
+    - Survives restarts
+    - Works correctly on Render
+    """
+    expected_key = os.getenv("SMARTQUEUE_API_KEY")
 
-    if api_key != API_KEY:
-        raise HTTPException(status_code=403, detail="Invalid API Key")
+    if not expected_key:
+        raise HTTPException(
+            status_code=500,
+            detail="API KEY not configured"
+        )
+
+    if not api_key or api_key != expected_key:
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid API Key"
+        )
 
 
 # ======================
@@ -54,7 +67,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "http://127.0.0.1:5500"
+        "http://127.0.0.1:5500",
+        "https://*.onrender.com"
     ],
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
@@ -94,7 +108,7 @@ async def receive_event(
         capacity_limit=CAPACITY_LIMIT
     )
 
-    # 2️⃣ WebSocket Broadcast (Dashboard)
+    # 2️⃣ WebSocket Broadcast (Dashboard Live)
     await manager.broadcast(
         place_id=event.place_id,
         data={
@@ -154,7 +168,7 @@ def list_reservations(
 
 
 # ======================
-# WebSocket (Dashboard)
+# WebSocket (Dashboard Live)
 # ======================
 @app.websocket("/ws/{place_id}")
 async def websocket_endpoint(
@@ -167,6 +181,3 @@ async def websocket_endpoint(
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
-
-
-
