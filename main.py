@@ -1,9 +1,11 @@
+import os
 from fastapi import (
     FastAPI,
     Depends,
     HTTPException,
     WebSocket,
-    WebSocketDisconnect
+    WebSocketDisconnect,
+    Security
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
@@ -19,17 +21,27 @@ from manager import ConnectionManager
 # ======================
 app = FastAPI(title="Smart Queue Backend")
 
-# Create DB tables
 Base.metadata.create_all(bind=engine)
 
 # ======================
 # Security
 # ======================
-API_KEY = "SMARTQUEUE-ESP32-KEY"
-api_key_header = APIKeyHeader(
-    name="X-API-KEY",
-    auto_error=False
-)
+api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
+
+def verify_api_key(api_key: str = Security(api_key_header)):
+    expected_key = os.environ.get("SMARTQUEUE_API_KEY")
+
+    if not expected_key:
+        raise HTTPException(
+            status_code=500,
+            detail="API KEY not configured"
+        )
+
+    if api_key != expected_key:
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid API Key"
+        )
 
 # ======================
 # Config
@@ -52,24 +64,20 @@ app.add_middleware(
 # ======================
 @app.get("/")
 def root():
-    return {
-        "status": "OK",
-        "service": "Smart Queue Backend"
-    }
+    return {"status": "OK"}
 
 # ======================
-# EVENT (ESP32 → Server)
+# EVENT
 # ======================
-@app.post("/event", response_model=schemas.EventResponse)
+@app.post(
+    "/event",
+    response_model=schemas.EventResponse,
+    dependencies=[Depends(verify_api_key)]
+)
 async def receive_event(
     event: schemas.EventIn,
-    db: Session = Depends(get_db),
-    api_key: str = Depends(api_key_header)
+    db: Session = Depends(get_db)
 ):
-    if api_key != API_KEY:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    # 1️⃣ Core Logic
     result = crud.handle_event(
         db=db,
         place_id=event.place_id,
@@ -78,7 +86,6 @@ async def receive_event(
         capacity_limit=CAPACITY_LIMIT
     )
 
-    # 2️⃣ 🔥 WebSocket Broadcast (هنا بالضبط)
     await manager.broadcast(
         place_id=event.place_id,
         data={
@@ -88,15 +95,15 @@ async def receive_event(
         }
     )
 
-    # 3️⃣ HTTP Response للـ ESP32
     return result
 
 # ======================
-# CONFIRM RESERVATION
+# CONFIRM
 # ======================
 @app.post(
     "/confirm",
-    response_model=schemas.ConfirmReservationResponse
+    response_model=schemas.ConfirmReservationResponse,
+    dependencies=[Depends(verify_api_key)]
 )
 def confirm_reservation(
     data: schemas.ConfirmReservationIn,
@@ -109,29 +116,24 @@ def confirm_reservation(
     )
 
     if status != "CONFIRMED":
-        raise HTTPException(
-            status_code=400,
-            detail=status
-        )
+        raise HTTPException(status_code=400, detail=status)
 
-    return {
-        "status": "CONFIRMED",
-        "place_id": data.place_id
-    }
-
-@app.get(
-    "/reservations",
-    response_model=list[schemas.ReservationOut]
-)
-def list_reservations(
-    db: Session = Depends(get_db)
-):
-    reservations = crud.get_active_reservations(db)
-    return reservations
-
+    return {"status": "CONFIRMED"}
 
 # ======================
-# WebSocket (Dashboard)
+# RESERVATIONS
+# ======================
+@app.get(
+    "/reservations",
+    response_model=list[schemas.ReservationOut],
+    dependencies=[Depends(verify_api_key)]
+)
+def list_reservations(db: Session = Depends(get_db)):
+    crud.cleanup_expired_reservations(db)
+    return crud.get_active_reservations(db)
+
+# ======================
+# WebSocket
 # ======================
 @app.websocket("/ws/{place_id}")
 async def websocket_endpoint(websocket: WebSocket, place_id: str):
@@ -141,4 +143,3 @@ async def websocket_endpoint(websocket: WebSocket, place_id: str):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
-
