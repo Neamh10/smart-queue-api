@@ -28,3 +28,18 @@ class Reservation(Base):
     to_place = Column(String, index=True)
     expires_at = Column(DateTime)
     confirmed = Column(Boolean, default=False)
+
+class Reservation(Base):
+    __tablename__ = "reservations"
+
+    id = Column(Integer, primary_key=True)
+    token = Column(String, unique=True, index=True)
+
+    from_place = Column(String)
+    to_place = Column(String)
+
+    confirmed = Column(Boolean, default=False)
+    archived = Column(Boolean, default=False)  
+    expires_at = Column(DateTime)
+
+
