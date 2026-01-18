@@ -24,6 +24,8 @@ def handle_event(
     time: datetime | None,
     capacity_limit: int
 ):
+    cleanup_reservations(db)   # تنظيف النظام أولًا
+
     place = db.query(Place).filter_by(place_id=place_id).first()
 
     if not place:
@@ -201,4 +203,5 @@ def cleanup_reservations(db):
         r.archived = True
 
     db.commit()
+
 
