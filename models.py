@@ -19,27 +19,19 @@ class VisitEvent(Base):
     current_count = Column(Integer)
     time = Column(DateTime, default=datetime.utcnow)
 
-
 class Reservation(Base):
     __tablename__ = "reservations"
 
-    token = Column(String, primary_key=True, index=True)
-    from_place = Column(String, index=True)
-    to_place = Column(String, index=True)
-    expires_at = Column(DateTime)
-    confirmed = Column(Boolean, default=False)
-
-class Reservation(Base):
-    __tablename__ = "reservations"
-
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, index=True)
     token = Column(String, unique=True, index=True)
 
-    from_place = Column(String)
-    to_place = Column(String)
+    from_place = Column(String, index=True)
+    to_place = Column(String, index=True)
 
     confirmed = Column(Boolean, default=False)
-    archived = Column(Boolean, default=False)  
+    archived = Column(Boolean, default=False)
     expires_at = Column(DateTime)
+
+
 
 
