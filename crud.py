@@ -194,13 +194,5 @@ def cleanup_reservations(db: Session):
             place.current_count -= 1
         db.delete(r)
 
-    #  أرشفة الحجوزات المؤكدة
-    confirmed = db.query(Reservation).filter(
-        Reservation.confirmed == True,
-        Reservation.archived == False
-    ).all()
-
-    for r in confirmed:
-        r.archived = True
-
     db.commit()
+
