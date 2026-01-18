@@ -29,6 +29,7 @@ Base.metadata.create_all(bind=engine)
 # Security (API KEY)
 # ======================
 API_KEY = os.getenv("SMARTQUEUE_API_KEY", "DEV-KEY-CHANGE-ME")
+print("API_KEY FROM ENV =", API_KEY)
 
 api_key_header = APIKeyHeader(
     name="X-API-KEY",
@@ -168,3 +169,4 @@ async def websocket_endpoint(
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
+
