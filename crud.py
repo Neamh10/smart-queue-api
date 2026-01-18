@@ -24,7 +24,7 @@ def handle_event(
     time: datetime | None,
     capacity_limit: int
 ):
-    cleanup_reservations(db)   # تنظيف النظام أولًا
+    cleanup_reservations(db)
 
     place = db.query(Place).filter_by(place_id=place_id).first()
 
@@ -38,54 +38,36 @@ def handle_event(
         db.commit()
         db.refresh(place)
 
-    # =========================
-    # ENTER
-    # =========================
+    # -------- ENTER --------
     if event == "enter":
 
-        # المكان ممتلئ → Smart Decision
         if place.current_count >= place.capacity:
-            #  اختيار مكان بديل (مؤقتًا ثابت)
             redirect_place = "hall_2"
 
-            try:
-                reservation = create_reservation(
-                    db,
-                    from_place=place_id,
-                    to_place=redirect_place
-                )
-            except ValueError:
-                return {
-                    "status": "FULL",
-                    "place_id": place_id,
-                    "current_count": place.current_count,
-                    "message": "All places are full"
-                }
+            reservation = create_reservation(
+                db,
+                from_place=place_id,
+                to_place=redirect_place
+            )
 
             return {
                 "status": "FULL",
                 "place_id": place_id,
                 "current_count": place.current_count,
                 "redirect_to": reservation.to_place,
-                "token": reservation.token,
-                "message": "Redirect to another hall"
+                "token": reservation.token
             }
 
-        # دخول طبيعي
         place.current_count += 1
 
-    # =========================
-    # EXIT
-    # =========================
+    # -------- EXIT --------
     elif event == "exit":
         place.current_count = max(0, place.current_count - 1)
 
     else:
         raise ValueError("Invalid event type")
 
-    # =========================
-    # LOG EVENT
-    # =========================
+    # -------- LOG --------
     log = VisitEvent(
         place_id=place_id,
         event=event,
@@ -95,14 +77,13 @@ def handle_event(
 
     db.add(log)
     db.commit()
-    db.refresh(place)
 
     return {
         "status": "OK",
         "place_id": place_id,
-        "current_count": place.current_count,
-        "message": "Event processed"
+        "current_count": place.current_count
     }
+
 
 # =========================
 # CREATE RESERVATION
@@ -110,29 +91,11 @@ def handle_event(
 def create_reservation(db: Session, from_place: str, to_place: str):
     token = generate_token()
 
-    target = db.query(Place).filter_by(place_id=to_place).first()
-    if not target:
-        target = Place(
-            place_id=to_place,
-            capacity=CAPACITY_LIMIT,
-            current_count=0
-        )
-        db.add(target)
-        db.commit()
-        db.refresh(target)
-
-    if target.current_count >= target.capacity:
-        raise ValueError("Target place full")
-
-    # حجز فعلي (زيادة العدّاد)
-    target.current_count += 1
-
     reservation = Reservation(
         token=token,
         from_place=from_place,
         to_place=to_place,
-        expires_at=datetime.utcnow() + timedelta(seconds=RESERVATION_TIMEOUT),
-        confirmed=False
+        expires_at=datetime.utcnow() + timedelta(seconds=RESERVATION_TIMEOUT)
     )
 
     db.add(reservation)
@@ -151,67 +114,45 @@ def confirm_reservation(db: Session, token: str, place_id: str):
     if not reservation:
         return None, "INVALID"
 
-    if reservation.confirmed:
-        return None, "ALREADY_CONFIRMED"
-
     if reservation.to_place != place_id:
         return None, "WRONG_PLACE"
 
     if reservation.expires_at < datetime.utcnow():
-        # إلغاء الحجز
-        place = db.query(Place).filter_by(
-            place_id=reservation.to_place
-        ).first()
-        place.current_count = max(0, place.current_count - 1)
-
         db.delete(reservation)
         db.commit()
         return None, "EXPIRED"
 
-# السماح بالدخول
-place.current_count += 1
+    # دخول حقيقي
+    place = db.query(Place).filter_by(place_id=place_id).first()
+    place.current_count += 1
 
-#  حذف الحجز فورًا
-db.delete(reservation)
+    # حذف الحجز فورًا
+    db.delete(reservation)
 
-db.commit()
-    return reservation, "CONFIRMED"
+    db.commit()
+    return None, "ENTERED"
 
+
+# =========================
+# ACTIVE RESERVATIONS
+# =========================
 def get_active_reservations(db: Session):
-    return (
-        db.query(Reservation)
-        .order_by(Reservation.expires_at.asc())
-        .all()
-    )
+    return db.query(Reservation).order_by(
+        Reservation.expires_at.asc()
+    ).all()
 
+
+# =========================
+# CLEANUP
+# =========================
 def cleanup_reservations(db: Session):
     now = datetime.utcnow()
 
-    # حذف الحجوزات المنتهية (PENDING)
     expired = db.query(Reservation).filter(
-        Reservation.confirmed == False,
         Reservation.expires_at < now
     ).all()
 
     for r in expired:
-        place = db.query(Place).filter_by(place_id=r.to_place).first()
-        if place and place.current_count > 0:
-            place.current_count -= 1
         db.delete(r)
 
     db.commit()
-
-def exit_place(db: Session, place_id: str):
-    place = db.query(Place).filter_by(place_id=place_id).first()
-    if not place:
-        return {"status": "NOT_FOUND"}
-
-    place.current_count = max(0, place.current_count - 1)
-    db.commit()
-
-    return {
-        "status": "EXIT",
-        "current_count": place.current_count
-    }
-
-
