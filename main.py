@@ -8,6 +8,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
+from fastapi.openapi.utils import get_openapi
 from sqlalchemy.orm import Session
 
 from database import Base, engine, get_db
@@ -19,9 +20,12 @@ from manager import ConnectionManager
 # ======================
 # App Init
 # ======================
-app = FastAPI(title="Smart Queue Backend")
+app = FastAPI(
+    title="Smart Queue Backend",
+    version="1.0.0",
+    description="Smart Queue & Reservation System API"
+)
 
-# Create DB tables
 Base.metadata.create_all(bind=engine)
 
 
@@ -29,15 +33,51 @@ Base.metadata.create_all(bind=engine)
 # Security (API KEY)
 # ======================
 API_KEY = os.getenv("SMARTQUEUE_API_KEY", "DEV-KEY-CHANGE-ME")
-print("API_KEY FROM ENV =", API_KEY)
+
 api_key_header = APIKeyHeader(
     name="X-API-KEY",
     auto_error=False
 )
 
+
 def verify_api_key(api_key: str = Depends(api_key_header)):
     if api_key != API_KEY:
         raise HTTPException(status_code=403, detail="Forbidden")
+
+
+# ======================
+# Swagger API Key Auth
+# ======================
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+
+    openapi_schema["components"]["securitySchemes"] = {
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-KEY",
+        }
+    }
+
+    for path in openapi_schema["paths"].values():
+        for method in path.values():
+            method.setdefault("security", []).append(
+                {"ApiKeyAuth": []}
+            )
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
 
 
 # ======================
@@ -85,7 +125,6 @@ async def receive_event(
     event: schemas.EventIn,
     db: Session = Depends(get_db)
 ):
-    # 1️⃣ Core Business Logic
     result = crud.handle_event(
         db=db,
         place_id=event.place_id,
@@ -94,7 +133,6 @@ async def receive_event(
         capacity_limit=CAPACITY_LIMIT
     )
 
-    # 2️⃣ WebSocket Broadcast (Dashboard)
     await manager.broadcast(
         place_id=event.place_id,
         data={
@@ -104,7 +142,6 @@ async def receive_event(
         }
     )
 
-    # 3️⃣ Response to ESP32
     return result
 
 
@@ -167,5 +204,3 @@ async def websocket_endpoint(
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
-
-
