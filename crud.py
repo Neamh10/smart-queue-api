@@ -122,8 +122,19 @@ def confirm_reservation(db: Session, token: str, place_id: str):
         db.commit()
         return None, "EXPIRED"
 
-    # دخول حقيقي
+    # ✅ تأكد من وجود المكان
     place = db.query(Place).filter_by(place_id=place_id).first()
+    if not place:
+        place = Place(
+            place_id=place_id,
+            capacity=CAPACITY_LIMIT,
+            current_count=0
+        )
+        db.add(place)
+        db.commit()
+        db.refresh(place)
+
+    # دخول حقيقي
     place.current_count += 1
 
     # حذف الحجز فورًا
@@ -131,6 +142,7 @@ def confirm_reservation(db: Session, token: str, place_id: str):
 
     db.commit()
     return None, "ENTERED"
+
 
 
 # =========================
@@ -156,3 +168,4 @@ def cleanup_reservations(db: Session):
         db.delete(r)
 
     db.commit()
+
