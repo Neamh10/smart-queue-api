@@ -176,4 +176,29 @@ def get_active_reservations(db: Session):
         .order_by(Reservation.expires_at.asc())
         .all()
     )
+def cleanup_reservations(db):
+    now = datetime.utcnow()
+
+    # حذف الحجوزات المنتهية (PENDING فقط)
+    expired = db.query(Reservation).filter(
+        Reservation.confirmed == False,
+        Reservation.expires_at < now
+    ).all()
+
+    for r in expired:
+        place = get_place(db, r.to_place)
+        if place.current_count > 0:
+            place.current_count -= 1
+        db.delete(r)
+
+    #  أرشفة الحجوزات المؤكدة
+    confirmed = db.query(Reservation).filter(
+        Reservation.confirmed == True,
+        Reservation.archived == False
+    ).all()
+
+    for r in confirmed:
+        r.archived = True
+
+    db.commit()
 
