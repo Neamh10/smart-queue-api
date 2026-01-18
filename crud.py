@@ -201,4 +201,17 @@ def cleanup_reservations(db: Session):
 
     db.commit()
 
+def exit_place(db: Session, place_id: str):
+    place = db.query(Place).filter_by(place_id=place_id).first()
+    if not place:
+        return {"status": "NOT_FOUND"}
+
+    place.current_count = max(0, place.current_count - 1)
+    db.commit()
+
+    return {
+        "status": "EXIT",
+        "current_count": place.current_count
+    }
+
 
