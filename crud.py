@@ -43,9 +43,9 @@ def handle_event(
     # =========================
     if event == "enter":
 
-        # 🔴 المكان ممتلئ → Smart Decision
+        # المكان ممتلئ → Smart Decision
         if place.current_count >= place.capacity:
-            # ⚠️ اختيار مكان بديل (مؤقتًا ثابت)
+            #  اختيار مكان بديل (مؤقتًا ثابت)
             redirect_place = "hall_2"
 
             try:
@@ -71,7 +71,7 @@ def handle_event(
                 "message": "Redirect to another hall"
             }
 
-        # 🟢 دخول طبيعي
+        # دخول طبيعي
         place.current_count += 1
 
     # =========================
@@ -168,8 +168,13 @@ def confirm_reservation(db: Session, token: str, place_id: str):
         db.commit()
         return None, "EXPIRED"
 
-    reservation.confirmed = True
-    db.commit()
+# السماح بالدخول
+place.current_count += 1
+
+#  حذف الحجز فورًا
+db.delete(reservation)
+
+db.commit()
     return reservation, "CONFIRMED"
 
 def get_active_reservations(db: Session):
@@ -195,4 +200,5 @@ def cleanup_reservations(db: Session):
         db.delete(r)
 
     db.commit()
+
 
