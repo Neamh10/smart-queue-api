@@ -108,17 +108,18 @@ def confirm_reservation(
         place_id=data.place_id
     )
 
-if status in ["INVALID", "WRONG_PLACE", "EXPIRED"]:
-    raise HTTPException(
-        status_code=400,
-        detail=status
-    )
+    # أخطاء فقط
+    if status in ["INVALID", "WRONG_PLACE", "EXPIRED"]:
+        raise HTTPException(
+            status_code=400,
+            detail=status
+        )
 
-# ENTERED = نجاح
-return {
-    "status": status,   # ENTERED
-    "place_id": data.place_id
-}
+    #  ENTERED = نجاح
+    return {
+        "status": status,   # ENTERED
+        "place_id": data.place_id
+    }
 
 
 @app.get(
@@ -143,5 +144,6 @@ async def websocket_endpoint(websocket: WebSocket, place_id: str):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
+
 
 
