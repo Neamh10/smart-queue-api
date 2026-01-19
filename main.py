@@ -69,7 +69,7 @@ async def receive_event(
     if api_key != API_KEY:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    # 1️⃣ Core Logic
+    # Core Logic
     result = crud.handle_event(
         db=db,
         place_id=event.place_id,
@@ -78,7 +78,7 @@ async def receive_event(
         capacity_limit=CAPACITY_LIMIT
     )
 
-    # 2️⃣ 🔥 WebSocket Broadcast (هنا بالضبط)
+    # WebSocket Broadcast 
     await manager.broadcast(
         place_id=event.place_id,
         data={
@@ -88,7 +88,7 @@ async def receive_event(
         }
     )
 
-    # 3️⃣ HTTP Response للـ ESP32
+    # HTTP Response للـ ESP32
     return result
 
 # ======================
@@ -108,16 +108,18 @@ def confirm_reservation(
         place_id=data.place_id
     )
 
-    if status != "CONFIRMED":
-        raise HTTPException(
-            status_code=400,
-            detail=status
-        )
+if status in ["INVALID", "WRONG_PLACE", "EXPIRED"]:
+    raise HTTPException(
+        status_code=400,
+        detail=status
+    )
 
-    return {
-        "status": "CONFIRMED",
-        "place_id": data.place_id
-    }
+# ENTERED = نجاح
+return {
+    "status": status,   # ENTERED
+    "place_id": data.place_id
+}
+
 
 @app.get(
     "/reservations",
@@ -141,4 +143,5 @@ async def websocket_endpoint(websocket: WebSocket, place_id: str):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
+
 
