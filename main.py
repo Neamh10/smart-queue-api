@@ -28,7 +28,10 @@ app.add_middleware(
 
 @app.get("/")
 def root():
-    return {"status": "OK", "service": "Smart Queue Backend"}
+    return {
+        "status": "OK",
+        "service": "Smart Queue Backend"
+    }
 
 
 @app.post("/event", response_model=schemas.EventResponse)
@@ -47,16 +50,15 @@ async def receive_event(
         capacity_limit=CAPACITY_LIMIT
     )
 
-  await manager.broadcast(
-    place_id=event.place_id,
-    data={
-        "place_id": event.place_id,
-        "state": result["state"],
-        "current_count": result["current_count"],
-        "portal_url": result.get("portal_url")
-    }
-)
-
+    await manager.broadcast(
+        place_id=event.place_id,
+        data={
+            "place_id": event.place_id,
+            "state": result["state"],
+            "current_count": result["current_count"],
+            "portal_url": result.get("portal_url")
+        }
+    )
 
     return result
 
@@ -69,4 +71,3 @@ async def websocket_endpoint(websocket: WebSocket, place_id: str):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
-
