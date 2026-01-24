@@ -29,7 +29,6 @@ def log_event(db: Session, place_id: str, event: str, count: int):
         current_count=count
     )
     db.add(log)
-
 def handle_event(
     db: Session,
     place_id: str,
@@ -40,8 +39,10 @@ def handle_event(
 
     # -------- ENTER --------
     if event == "enter":
-        if place.current_count == place.capacity:
-            update_place_state(place)
+
+        # 🚫 محاولة دخول بعد الامتلاء
+        if place.current_count >= place.capacity:
+            place.state = "FULL"
             db.commit()
             return {
                 "status": "OK",
@@ -50,6 +51,7 @@ def handle_event(
                 "portal_url": f"http://gate.local/portal/{place_id}"
             }
 
+        # ✅ دخول مسموح
         place.current_count += 1
 
     # -------- EXIT --------
@@ -59,6 +61,7 @@ def handle_event(
     else:
         raise ValueError("Invalid event")
 
+    # تحديث الحالة بعد التغيير
     update_place_state(place)
     log_event(db, place_id, event, place.current_count)
     db.commit()
@@ -67,6 +70,10 @@ def handle_event(
         "status": "OK",
         "state": place.state,
         "current_count": place.current_count,
-        "portal_url": f"http://gate.local/portal/{place_id}" if place.state == "FULL" else None
+        "portal_url": (
+            f"http://gate.local/portal/{place_id}"
+            if place.state == "FULL"
+            else None
+        )
     }
 
