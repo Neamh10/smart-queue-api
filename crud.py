@@ -17,70 +17,33 @@ def generate_token():
 # =========================
 # MAIN EVENT HANDLER
 # =========================
-def handle_event(
-    db: Session,
-    place_id: str,
-    event: str,
-    time: datetime | None,
-    capacity_limit: int
-):
-    cleanup_reservations(db)
+def handle_event(db: Session, place_id: str, event: str, time, capacity_limit):
 
-    place = db.query(Place).filter_by(place_id=place_id).first()
+    place = get_or_create_place(db, place_id, capacity_limit)
 
-    if not place:
-        place = Place(
-            place_id=place_id,
-            capacity=capacity_limit,
-            current_count=0
-        )
-        db.add(place)
-        db.commit()
-        db.refresh(place)
-
-    # -------- ENTER --------
     if event == "enter":
-
         if place.current_count >= place.capacity:
-            redirect_place = "hall_2"
-
-            reservation = create_reservation(
-                db,
-                from_place=place_id,
-                to_place=redirect_place
-            )
-
-        return {
-    "status": "OK",
-    "state": place.state,
-    "current_count": place.current_count,
-    "portal_url": "http://gate.local" if place.state == "FULL" else None
-          }
-
+            update_place_state(place)
+            db.commit()
+            return {
+                "status": "OK",
+                "state": "FULL",
+                "current_count": place.current_count,
+                "portal_url": f"http://gate.local/portal/{place_id}"
+            }
 
         place.current_count += 1
 
-    # -------- EXIT --------
     elif event == "exit":
         place.current_count = max(0, place.current_count - 1)
 
-    else:
-        raise ValueError("Invalid event type")
-
-    # -------- LOG --------
-    log = VisitEvent(
-        place_id=place_id,
-        event=event,
-        current_count=place.current_count,
-        time=time or datetime.utcnow()
-    )
-
-    db.add(log)
+    update_place_state(place)
+    log_event(...)
     db.commit()
 
     return {
         "status": "OK",
-        "place_id": place_id,
+        "state": place.state,
         "current_count": place.current_count
     }
 
@@ -168,5 +131,6 @@ def cleanup_reservations(db: Session):
         db.delete(r)
 
     db.commit()
+
 
 
