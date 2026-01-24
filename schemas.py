@@ -4,7 +4,7 @@ from datetime import datetime
 
 
 # ======================
-# INPUT
+# INPUT (ESP32 / Manual)
 # ======================
 class EventIn(BaseModel):
     place_id: str              # hall_1
@@ -12,33 +12,19 @@ class EventIn(BaseModel):
     time: Optional[datetime] = None
 
 
-class ConfirmReservationIn(BaseModel):
-    token: str
-    place_id: str
-
-
 # ======================
-# OUTPUT
+# OUTPUT (ESP32 Response)
 # ======================
 class EventResponse(BaseModel):
-    status: str                # OK | FULL
-    place_id: str
+    status: str                # OK
+    state: str                 # NORMAL | FULL
     current_count: int
+    portal_url: Optional[str] = None
 
-    # FULL only
-    redirect_to: Optional[str] = None
-    token: Optional[str] = None
 
-    # optional (for logs / dashboard)
-    message: Optional[str] = None
-
-class ConfirmReservationResponse(BaseModel):
-    status: str                # CONFIRMED
-    place_id: str
 # ======================
-# DASHBOARD
+# DASHBOARD (WebSocket / Logs)
 # ======================
-
 class EventLog(BaseModel):
     time: datetime
     event: str
@@ -49,10 +35,4 @@ class PlaceStatus(BaseModel):
     place_id: str
     current_count: int
     capacity: int
-
-class ReservationOut(BaseModel):
-    token: str
-    from_place: str
-    to_place: str
-    confirmed: bool
-    expires_at: datetime
+    state: str
