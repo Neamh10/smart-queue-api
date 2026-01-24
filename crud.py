@@ -50,13 +50,13 @@ def handle_event(
                 to_place=redirect_place
             )
 
-            return {
-                "status": "FULL",
-                "place_id": place_id,
-                "current_count": place.current_count,
-                "redirect_to": reservation.to_place,
-                "token": reservation.token
-            }
+        return {
+    "status": "OK",
+    "state": place.state,
+    "current_count": place.current_count,
+    "portal_url": "http://gate.local" if place.state == "FULL" else None
+          }
+
 
         place.current_count += 1
 
@@ -168,4 +168,5 @@ def cleanup_reservations(db: Session):
         db.delete(r)
 
     db.commit()
+
 
