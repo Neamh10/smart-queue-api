@@ -4,7 +4,7 @@ from database import Base
 from enum import Enum
 
 
-cclass Place(Base):
+class Place(Base):
     __tablename__ = "places"
 
     id = Column(String, primary_key=True)
@@ -39,6 +39,7 @@ class Reservation(Base):
 class PlaceState(str, Enum):
     NORMAL = "NORMAL"
     FULL = "FULL"
+
 
 
 
