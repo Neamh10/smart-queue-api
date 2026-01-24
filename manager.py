@@ -21,3 +21,9 @@ class ConnectionManager:
 
         for websocket in self.active_connections[place_id]:
             await websocket.send_json(data)
+
+def update_place_state(place):
+    if place.current_count >= place.capacity:
+        place.state = "FULL"
+    else:
+        place.state = "NORMAL"
