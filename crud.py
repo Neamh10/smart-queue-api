@@ -30,7 +30,6 @@ def log_event(db: Session, place_id: str, event: str, count: int):
     )
     db.add(log)
 
-
 def handle_event(
     db: Session,
     place_id: str,
@@ -41,7 +40,7 @@ def handle_event(
 
     # -------- ENTER --------
     if event == "enter":
-        if place.current_count >= place.capacity:
+        if place.current_count == place.capacity:
             update_place_state(place)
             db.commit()
             return {
@@ -70,3 +69,4 @@ def handle_event(
         "current_count": place.current_count,
         "portal_url": f"http://gate.local/portal/{place_id}" if place.state == "FULL" else None
     }
+
