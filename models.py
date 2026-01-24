@@ -1,8 +1,6 @@
 from sqlalchemy import Column, String, Integer, DateTime
 from datetime import datetime
 from database import Base
-from enum import Enum
-
 
 class Place(Base):
     __tablename__ = "places"
@@ -11,7 +9,6 @@ class Place(Base):
     capacity = Column(Integer, default=10)
     current_count = Column(Integer, default=0)
     state = Column(String, default="NORMAL")  # NORMAL | FULL
-
 
 class VisitEvent(Base):
     __tablename__ = "visit_events"
@@ -22,11 +19,6 @@ class VisitEvent(Base):
     current_count = Column(Integer)
     time = Column(DateTime, default=datetime.utcnow)
  
-
-class PlaceState(str, Enum):
-    NORMAL = "NORMAL"
-    FULL = "FULL"
-
 
 
 
