@@ -117,10 +117,9 @@ def confirm_reservation(
 
     #  ENTERED = نجاح
     return {
-        "status": status,   # ENTERED
+        "status": status,   
         "place_id": data.place_id
     }
-
 
 @app.get(
     "/reservations",
@@ -145,5 +144,18 @@ async def websocket_endpoint(websocket: WebSocket, place_id: str):
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
 
+@router.post("/admin/places/{place_id}/count")
+def set_manual_count(place_id: str, count: int, db: Session = Depends(get_db)):
+    place = get_place(db, place_id)
 
+    place.current_count = count
+    update_place_state(place)
+
+    db.commit()
+
+    return {
+        "place_id": place.id,
+        "current_count": place.current_count,
+        "state": place.state
+    }
 
