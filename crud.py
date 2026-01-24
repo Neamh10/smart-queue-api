@@ -19,7 +19,8 @@ def get_or_create_place(db: Session, place_id: str, capacity: int):
 
 
 def update_place_state(place: Place):
-    place.state = "FULL" if place.current_count >= place.capacity else "NORMAL"
+    place.state = "FULL" if place.current_count > place.capacity else "NORMAL"
+
 
 
 def log_event(db: Session, place_id: str, event: str, count: int):
@@ -73,6 +74,7 @@ def handle_event(
         "current_count": place.current_count,
         "portal_url": None
     }
+
 
 
 
