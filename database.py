@@ -7,20 +7,21 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./smart_queue.db")
 
-# Detect database type
 is_sqlite = DATABASE_URL.startswith("sqlite")
 
-#  Create engine safely
 engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False} if is_sqlite else {},
-    pool_pre_ping=True
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+    echo=False,
 )
 
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
-    bind=engine
+    bind=engine,
 )
 
 Base = declarative_base()
