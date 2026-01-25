@@ -88,7 +88,7 @@ def handle_event(
             db.commit()
             return {
                 "status": "OK",
-                "state": "FULL",
+                "state":  place.state,
                 "current_count": place.current_count,
                 "portal_url": f"http://gate.local/portal/{place_id}"
             }
@@ -114,6 +114,7 @@ def handle_event(
         "current_count": place.current_count,
         "portal_url": None
     }
+
 
 
 
