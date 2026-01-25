@@ -1,16 +1,17 @@
 from sqlalchemy.orm import Session
-from datetime import datetime
-from models import Place, VisitEvent
 from datetime import datetime, timedelta
-from models import Reservation
+from models import Place, VisitEvent, Reservation
 
+# =========================
+# Config
+# =========================
 RESERVATION_TTL = 120  # 2 minutes
 
-def create_reservation(
-    db,
-    from_place: str,
-    to_place: str
-):
+
+# =========================
+# Reservation Logic
+# =========================
+def create_reservation(db: Session, from_place: str, to_place: str):
     now = datetime.utcnow()
 
     reservation = Reservation(
@@ -28,7 +29,7 @@ def create_reservation(
     return reservation
 
 
-def cleanup_expired_reservations(db):
+def cleanup_expired_reservations(db: Session):
     now = datetime.utcnow()
 
     expired = db.query(Reservation).filter(
@@ -42,6 +43,9 @@ def cleanup_expired_reservations(db):
     db.commit()
 
 
+# =========================
+# Place Logic
+# =========================
 def get_or_create_place(db: Session, place_id: str, capacity: int):
     place = db.query(Place).filter_by(id=place_id).first()
     if not place:
@@ -58,8 +62,8 @@ def get_or_create_place(db: Session, place_id: str, capacity: int):
 
 
 def update_place_state(place: Place):
-    place.state = "FULL" if place.current_count > place.capacity else "NORMAL"
-
+    # ✅ التصحيح المهم: FULL عند الوصول للسعة
+    place.state = "FULL" if place.current_count >= place.capacity else "NORMAL"
 
 
 def log_event(db: Session, place_id: str, event: str, count: int):
@@ -70,20 +74,27 @@ def log_event(db: Session, place_id: str, event: str, count: int):
     )
     db.add(log)
 
+
+# =========================
+# Main Event Handler
+# =========================
 def handle_event(
     db: Session,
     place_id: str,
     event: str,
     capacity_limit: int
 ):
+    # تنظيف الحجوزات المنتهية
+    cleanup_expired_reservations(db)
+
     place = get_or_create_place(db, place_id, capacity_limit)
 
     # -------- ENTER --------
     if event == "enter":
 
-        # 🚫 محاولة دخول بعد الامتلاء (الشخص رقم 11)
+        # 🚫 الشخص رقم (capacity + 1)
         if place.current_count >= place.capacity:
-            place.state = "FULL"
+            update_place_state(place)
             db.commit()
             return {
                 "status": "OK",
@@ -92,7 +103,7 @@ def handle_event(
                 "portal_url": f"http://gate.local/portal/{place_id}"
             }
 
-        # ✅ دخول مسموح (حتى 10)
+        # ✅ دخول مسموح
         place.current_count += 1
 
     # -------- EXIT --------
@@ -102,7 +113,7 @@ def handle_event(
     else:
         raise ValueError("Invalid event")
 
-    # تحديث الحالة
+    # تحديث الحالة + تسجيل الحدث
     update_place_state(place)
     log_event(db, place_id, event, place.current_count)
     db.commit()
@@ -111,11 +122,5 @@ def handle_event(
         "status": "OK",
         "state": place.state,
         "current_count": place.current_count,
-        "portal_url": None
+        "portal_url": f"http://gate.local/portal/{place_id}" if place.state == "FULL" else None
     }
-
-
-
-
-
-
