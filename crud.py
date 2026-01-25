@@ -60,11 +60,8 @@ def get_or_create_place(db: Session, place_id: str, capacity: int):
         db.refresh(place)
     return place
 
-
 def update_place_state(place: Place):
-    # ✅ التصحيح المهم: FULL عند الوصول للسعة
-    place.state = "FULL" if place.current_count >= place.capacity else "NORMAL"
-
+    place.state = "FULL" if place.current_count > place.capacity else "NORMAL"
 
 def log_event(db: Session, place_id: str, event: str, count: int):
     log = VisitEvent(
@@ -124,3 +121,4 @@ def handle_event(
         "current_count": place.current_count,
         "portal_url": f"http://gate.local/portal/{place_id}" if place.state == "FULL" else None
     }
+
