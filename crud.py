@@ -27,6 +27,21 @@ def create_reservation(
 
     return reservation
 
+
+def cleanup_expired_reservations(db):
+    now = datetime.utcnow()
+
+    expired = db.query(Reservation).filter(
+        Reservation.status == "ACTIVE",
+        Reservation.expires_at < now
+    ).all()
+
+    for r in expired:
+        r.status = "EXPIRED"
+
+    db.commit()
+
+
 def get_or_create_place(db: Session, place_id: str, capacity: int):
     place = db.query(Place).filter_by(id=place_id).first()
     if not place:
@@ -98,6 +113,7 @@ def handle_event(
         "current_count": place.current_count,
         "portal_url": None
     }
+
 
 
 
