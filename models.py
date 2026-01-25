@@ -18,7 +18,22 @@ class VisitEvent(Base):
     event = Column(String)  # enter | exit
     current_count = Column(Integer)
     time = Column(DateTime, default=datetime.utcnow)
+
+
+class Reservation(Base):
+    __tablename__ = "reservations"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    from_place = Column(String, index=True)   # المكان الممتلئ
+    to_place = Column(String, index=True)     # المكان البديل
+
+    status = Column(String, default="ACTIVE") # ACTIVE | USED | EXPIRED
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime)
  
+
 
 
 
