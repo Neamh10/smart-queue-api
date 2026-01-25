@@ -1,7 +1,31 @@
 from sqlalchemy.orm import Session
 from datetime import datetime
 from models import Place, VisitEvent
+from datetime import datetime, timedelta
+from models import Reservation
 
+RESERVATION_TTL = 120  # 2 minutes
+
+def create_reservation(
+    db,
+    from_place: str,
+    to_place: str
+):
+    now = datetime.utcnow()
+
+    reservation = Reservation(
+        from_place=from_place,
+        to_place=to_place,
+        status="ACTIVE",
+        created_at=now,
+        expires_at=now + timedelta(seconds=RESERVATION_TTL)
+    )
+
+    db.add(reservation)
+    db.commit()
+    db.refresh(reservation)
+
+    return reservation
 
 def get_or_create_place(db: Session, place_id: str, capacity: int):
     place = db.query(Place).filter_by(id=place_id).first()
@@ -74,6 +98,7 @@ def handle_event(
         "current_count": place.current_count,
         "portal_url": None
     }
+
 
 
 
