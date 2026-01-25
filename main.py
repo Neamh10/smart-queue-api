@@ -2,7 +2,6 @@ from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconn
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
-
 from database import Base, engine, get_db
 import crud
 from manager import ConnectionManager
@@ -71,3 +70,4 @@ async def websocket_endpoint(websocket: WebSocket, place_id: str):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
+
