@@ -90,3 +90,9 @@ def create_reservation_api(
         "status": "RESERVED",
         "expires_in": 120
     }
+from models import Reservation
+
+@app.get("/reservations/debug")
+def debug_reservations(db: Session = Depends(get_db)):
+    return db.query(Reservation).order_by(Reservation.created_at.desc()).all()
+
