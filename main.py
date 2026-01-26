@@ -2,11 +2,16 @@ from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconn
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
-from database import Base, engine, get_db
-import crud
-from manager import ConnectionManager
-import schemas
 
+from database import Base, engine, get_db
+from manager import ConnectionManager
+import crud
+import schemas
+from models import Reservation   # ✅ مهم: في الأعلى
+
+# =====================================================
+# APP INIT
+# =====================================================
 app = FastAPI(title="Smart Queue Backend")
 
 Base.metadata.create_all(bind=engine)
@@ -24,7 +29,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
+# =====================================================
+# ROOT
+# =====================================================
 @app.get("/")
 def root():
     return {
@@ -32,7 +39,9 @@ def root():
         "service": "Smart Queue Backend"
     }
 
-
+# =====================================================
+# EVENT (ENTER / EXIT)
+# =====================================================
 @app.post("/event", response_model=schemas.EventResponse)
 async def receive_event(
     event: schemas.EventIn,
@@ -61,7 +70,9 @@ async def receive_event(
 
     return result
 
-
+# =====================================================
+# WEBSOCKET
+# =====================================================
 @app.websocket("/ws/{place_id}")
 async def websocket_endpoint(websocket: WebSocket, place_id: str):
     await manager.connect(websocket, place_id)
@@ -71,16 +82,15 @@ async def websocket_endpoint(websocket: WebSocket, place_id: str):
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
 
-
-@app.post(
-    "/reservations",
-    response_model=schemas.ReservationResponse
-)
+# =====================================================
+# CREATE RESERVATION
+# =====================================================
+@app.post("/reservations", response_model=schemas.ReservationResponse)
 def create_reservation_api(
     data: schemas.ReservationIn,
     db: Session = Depends(get_db)
 ):
-    reservation = crud.create_reservation(
+    crud.create_reservation(
         db=db,
         from_place=data.from_place,
         to_place=data.to_place
@@ -90,9 +100,12 @@ def create_reservation_api(
         "status": "RESERVED",
         "expires_in": 120
     }
-from models import Reservation
 
+# =====================================================
+# DEBUG – VIEW RESERVATIONS
+# =====================================================
 @app.get("/reservations/debug")
 def debug_reservations(db: Session = Depends(get_db)):
-    return db.query(Reservation).order_by(Reservation.created_at.desc()).all()
-
+    return db.query(Reservation).order_by(
+        Reservation.created_at.desc()
+    ).all()
