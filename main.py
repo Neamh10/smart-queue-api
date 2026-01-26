@@ -71,3 +71,22 @@ async def websocket_endpoint(websocket: WebSocket, place_id: str):
     except WebSocketDisconnect:
         manager.disconnect(websocket, place_id)
 
+
+@app.post(
+    "/reservations",
+    response_model=schemas.ReservationResponse
+)
+def create_reservation_api(
+    data: schemas.ReservationIn,
+    db: Session = Depends(get_db)
+):
+    reservation = crud.create_reservation(
+        db=db,
+        from_place=data.from_place,
+        to_place=data.to_place
+    )
+
+    return {
+        "status": "RESERVED",
+        "expires_in": 120
+    }
