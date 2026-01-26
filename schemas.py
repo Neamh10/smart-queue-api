@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+from pydantic import BaseModel
 
 
 # ======================
@@ -36,3 +37,14 @@ class PlaceStatus(BaseModel):
     current_count: int
     capacity: int
     state: str
+
+
+class ReservationIn(BaseModel):
+    from_place: str
+    to_place: str
+
+
+class ReservationResponse(BaseModel):
+    status: str
+    expires_in: int
+
