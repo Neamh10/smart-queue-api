@@ -109,3 +109,14 @@ def debug_reservations(db: Session = Depends(get_db)):
     return db.query(Reservation).order_by(
         Reservation.created_at.desc()
     ).all()
+@app.get("/reservations/debug")
+def debug_reservations(db: Session = Depends(get_db)):
+    expired = crud.cleanup_expired_reservations(db)
+
+    return {
+        "expired_cleaned": expired,
+        "reservations": db.query(Reservation)
+            .order_by(Reservation.created_at.desc())
+            .all()
+    }
+
