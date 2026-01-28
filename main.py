@@ -2,12 +2,11 @@ from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconn
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
-
 from database import Base, engine, get_db
 from manager import ConnectionManager
 import crud
 import schemas
-from models import Reservation   # ✅ مهم: في الأعلى
+from models import Reservation   
 
 # =====================================================
 # APP INIT
@@ -104,11 +103,7 @@ def create_reservation_api(
 # =====================================================
 # DEBUG – VIEW RESERVATIONS
 # =====================================================
-@app.get("/reservations/debug")
-def debug_reservations(db: Session = Depends(get_db)):
-    return db.query(Reservation).order_by(
-        Reservation.created_at.desc()
-    ).all()
+
 @app.get("/reservations/debug")
 def debug_reservations(db: Session = Depends(get_db)):
     expired = crud.cleanup_expired_reservations(db)
@@ -119,4 +114,5 @@ def debug_reservations(db: Session = Depends(get_db)):
             .order_by(Reservation.created_at.desc())
             .all()
     }
+
 
