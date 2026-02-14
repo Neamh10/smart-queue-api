@@ -1,9 +1,9 @@
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 from database import Base, engine, get_db
-from manager import ConnectionManager
+from manager import manager 
 import crud
 import schemas
 from models import Reservation   
@@ -19,8 +19,6 @@ API_KEY = "SMARTQUEUE-ESP32-KEY"
 api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
 
 CAPACITY_LIMIT = 10
-manager = ConnectionManager()
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -79,7 +77,9 @@ async def websocket_endpoint(websocket: WebSocket, place_id: str):
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        manager.disconnect(websocket, place_id)
+        manager.disconnect(websocket, place_id) 
+
+
 
 # =====================================================
 # CREATE RESERVATION
@@ -115,5 +115,34 @@ def debug_reservations(db: Session = Depends(get_db)):
             .all()
     }
 
+
+API_KEY = "SMARTQUEUE-ESP32-KEY"
+
+@app.post("/trigger")
+async def trigger_event(
+    data: dict,
+    x_api_key: str = Header(None)
+):
+
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    event = data.get("event")
+    place_id = data.get("place_id")
+
+    if not event or not place_id:
+        raise HTTPException(status_code=400, detail="Missing event or place_id")
+
+    print(f"🚨 Trigger: {event} for {place_id}")
+
+    await manager.broadcast(
+        place_id,
+        {
+            "event": event,
+            "place_id": place_id
+        }
+    )
+
+    return {"status": "Broadcasted"}
 
 
